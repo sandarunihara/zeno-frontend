@@ -1,13 +1,5 @@
 import React from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ViewStyle,
-  TextStyle,
-  ActivityIndicator,
-} from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
+import { ActivityIndicator, Pressable, Text, ViewStyle, TextStyle } from 'react-native';
 
 interface ButtonProps {
   title: string;
@@ -17,6 +9,7 @@ interface ButtonProps {
   variant?: 'primary' | 'secondary';
   style?: ViewStyle;
   textStyle?: TextStyle;
+  className?: string;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -27,52 +20,41 @@ export const Button: React.FC<ButtonProps> = ({
   variant = 'primary',
   style,
   textStyle,
+  className,
 }) => {
-  const { theme } = useTheme();
-
   const isPrimary = variant === 'primary';
   const isDisabled = disabled || loading;
 
-  const buttonStyle: ViewStyle = {
-    backgroundColor: isDisabled
-      ? theme.buttonDisabled
-      : isPrimary
-      ? theme.button
-      : 'transparent',
-    borderRadius: 50,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    shadowColor: isPrimary ? theme.shadow : 'transparent',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-    borderWidth: isPrimary ? 0 : 1.5,
-    borderColor: isPrimary ? 'transparent' : theme.button,
-  };
+  const buttonClasses = [
+    'min-h-14 flex-row items-center justify-center rounded-full px-4 py-4 active:opacity-80',
+    isPrimary
+      ? 'bg-black shadow-sm shadow-black/15 dark:bg-white dark:shadow-white/10'
+      : 'border border-black bg-transparent dark:border-white',
+    isDisabled ? 'opacity-40' : '',
+    className ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  const textStyleComputed: TextStyle = {
-    color: isPrimary ? theme.buttonText : theme.button,
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  };
+  const textClasses = [
+    'text-base font-semibold tracking-wide',
+    isPrimary ? 'text-white dark:text-black' : 'text-black dark:text-white',
+  ].join(' ');
 
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={onPress}
       disabled={isDisabled}
-      activeOpacity={0.75}
-      style={[buttonStyle, style]}
+      className={buttonClasses}
+      style={style}
     >
       {loading ? (
-        <ActivityIndicator color={isPrimary ? theme.buttonText : theme.button} />
+        <ActivityIndicator color={isPrimary ? '#FFFFFF' : '#000000'} />
       ) : (
-        <Text style={[textStyleComputed, textStyle]}>{title}</Text>
+        <Text style={textStyle} className={textClasses}>
+          {title}
+        </Text>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 };

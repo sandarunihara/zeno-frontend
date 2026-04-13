@@ -1,26 +1,15 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useTheme } from '../../theme/ThemeContext';
-import { useAuth } from '../../store/AuthContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
+import { useAuth } from '../../store/AuthContext';
 
 type Props = NativeStackScreenProps<any, 'Signup'>;
 
 const SignupScreen: React.FC<Props> = ({ navigation }) => {
-  const { theme } = useTheme();
   const { signup } = useAuth();
-
   const [fname, setFname] = useState('');
   const [lname, setLname] = useState('');
   const [email, setEmail] = useState('');
@@ -36,7 +25,13 @@ const SignupScreen: React.FC<Props> = ({ navigation }) => {
   }>({});
 
   const validateForm = () => {
-    const newErrors: any = {};
+    const newErrors: {
+      fname?: string;
+      lname?: string;
+      email?: string;
+      password?: string;
+      confirmPassword?: string;
+    } = {};
 
     if (!fname.trim()) {
       newErrors.fname = 'First name is required';
@@ -81,120 +76,87 @@ const SignupScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const styles = StyleSheet.create({
-    safeArea: {
-      flex: 1,
-      backgroundColor: theme.background,
-    },
-    container: {
-      flex: 1,
-      backgroundColor: theme.background,
-    },
-    scrollContent: {
-      paddingHorizontal: 24,
-      paddingVertical: 32,
-    },
-    title: {
-      fontSize: 32,
-      fontWeight: '700',
-      color: theme.text,
-      marginBottom: 8,
-    },
-    subtitle: {
-      fontSize: 14,
-      color: theme.textSecondary,
-      marginBottom: 32,
-    },
-    formContainer: {
-      marginBottom: 24,
-    },
-    nameRow: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-    nameInput: {
-      flex: 1,
-    },
-    loginLink: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginTop: 16,
-    },
-    loginText: {
-      color: theme.textSecondary,
-      fontSize: 14,
-    },
-    loginLinkText: {
-      color: theme.button,
-      fontSize: 14,
-      fontWeight: '600',
-      marginLeft: 4,
-    },
-  });
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-        <ScrollView showsVerticalScrollIndicator={false} style={styles.container}>
-          <View style={styles.scrollContent}>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Join us today</Text>
+    <SafeAreaView className="flex-1 bg-white dark:bg-black">
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          className="flex-1"
+          contentContainerClassName="flex-grow px-6 py-8"
+        >
+          <View className="flex-1 justify-between">
+            <View className="pt-6">
+              <View className="mb-8 mx-auto self-start rounded-full border border-zinc-200 bg-white px-4 py-2 dark:border-zinc-800 dark:bg-black">
+                <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400">
+                  Zeno
+                </Text>
+              </View>
 
-            <View style={styles.formContainer}>
-              <View style={styles.nameRow}>
+              <Text className="text-4xl mx-auto font-bold tracking-tight text-black dark:text-white">
+                Create Account
+              </Text>
+              <Text className="mt-3 max-w-[320px] mx-auto text-base leading-6 text-zinc-500 dark:text-zinc-400">
+                Join Zeno Today
+              </Text>
+
+              <View className="mt-10 rounded-[32px]  bg-white p-5 dark:bg-black">
+                <View className="flex-row gap-3">
+                  <View className="flex-1">
+                    <Input
+                      placeholder="First name"
+                      value={fname}
+                      onChangeText={setFname}
+                      error={errors.fname}
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Input
+                      placeholder="Last name"
+                      value={lname}
+                      onChangeText={setLname}
+                      error={errors.lname}
+                    />
+                  </View>
+                </View>
+
                 <Input
-                  label="First Name"
-                  placeholder="First name"
-                  value={fname}
-                  onChangeText={setFname}
-                  error={errors.fname}
-                  style={styles.nameInput}
+                  placeholder="Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  error={errors.email}
                 />
+
                 <Input
-                  label="Last Name"
-                  placeholder="Last name"
-                  value={lname}
-                  onChangeText={setLname}
-                  error={errors.lname}
-                  style={styles.nameInput}
+                  placeholder="Password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  error={errors.password}
+                />
+
+                <Input
+                  placeholder="Confirm Password"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry
+                  error={errors.confirmPassword}
                 />
               </View>
 
-              <Input
-                label="Email"
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                error={errors.email}
-              />
-
-              <Input
-                label="Password"
-                placeholder="Create a password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                error={errors.password}
-              />
-
-              <Input
-                label="Confirm Password"
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-                error={errors.confirmPassword}
+              <Button
+                title="Create Account"
+                onPress={handleSignup}
+                loading={loading}
+                variant="primary"
+                className="mt-6 bg-[#007AFF] font-bold"
               />
             </View>
 
-            <Button title="Create Account" onPress={handleSignup} loading={loading} variant="primary" />
-
-            <View style={styles.loginLink}>
-              <Text style={styles.loginText}>Already have an account?</Text>
+            <View className="mt-8 flex-row items-center justify-center gap-1 pb-4">
+              <Text className="text-sm text-zinc-500 dark:text-zinc-400">Already have an account?</Text>
               <Text
-                style={styles.loginLinkText}
+                className="text-sm font-semibold text-black dark:text-white"
                 onPress={() => navigation.goBack()}
               >
                 Sign In

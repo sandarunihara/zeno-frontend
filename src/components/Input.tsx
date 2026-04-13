@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
-import {
-  TextInput,
-  View,
-  Text,
-  StyleSheet,
-  ViewStyle,
-  TextStyle,
-  TouchableOpacity,
-} from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
+import { Pressable, Text, TextInput, View, ViewStyle } from 'react-native';
 
 interface InputProps {
   placeholder: string;
@@ -20,6 +11,7 @@ interface InputProps {
   error?: string;
   label?: string;
   style?: ViewStyle;
+  className?: string;
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -32,54 +24,37 @@ export const Input: React.FC<InputProps> = ({
   error,
   label,
   style,
+  className,
 }) => {
-  const { theme } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(!secureTextEntry);
 
-  const containerStyle: ViewStyle = {
-    marginBottom: 16,
-    width: '100%',
-  };
+  const wrapperClasses = ['mb-4 w-full', className ?? ''].filter(Boolean).join(' ');
 
-  const labelStyle: TextStyle = {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.text,
-    marginBottom: 8,
-  };
+  const inputClasses = [
+    'flex-row items-center rounded-3xl border px-4 py-4 transition-colors',
+    'bg-white dark:bg-black',
+    error
+      ? 'border-red-500'
+      : isFocused
+      ? 'border-black dark:border-white'
+      : 'border-zinc-200 dark:border-zinc-800',
+    disabled ? 'opacity-50' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  const inputContainerStyle: ViewStyle = {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.input,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: error ? theme.error : isFocused ? theme.button : theme.inputBorder,
-    paddingHorizontal: 12,
-    paddingVertical: 0,
-  };
-
-  const textInputStyle: TextStyle = {
-    flex: 1,
-    fontSize: 16,
-    color: theme.text,
-    paddingVertical: 12,
-  };
-
-  const errorStyle: TextStyle = {
-    fontSize: 12,
-    color: theme.error,
-    marginTop: 6,
-  };
+  const labelClasses = 'mb-2 text-sm font-semibold text-black dark:text-white';
+  const inputTextClasses = 'flex-1 py-0 text-base text-black dark:text-white';
+  const errorClasses = 'mt-2 text-sm text-red-500';
 
   return (
-    <View style={[containerStyle, style]}>
-      {label && <Text style={labelStyle}>{label}</Text>}
-      <View style={inputContainerStyle}>
+    <View style={style} className={wrapperClasses}>
+      {label && <Text className={labelClasses}>{label}</Text>}
+      <View className={inputClasses}>
         <TextInput
           placeholder={placeholder}
-          placeholderTextColor={theme.textSecondary}
+          placeholderTextColor="#71717a"
           value={value}
           onChangeText={onChangeText}
           secureTextEntry={secureTextEntry && !showPassword}
@@ -87,17 +62,17 @@ export const Input: React.FC<InputProps> = ({
           editable={!disabled}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          style={textInputStyle}
+          className={inputTextClasses}
         />
         {secureTextEntry && (
-          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-            <Text style={{ color: theme.textSecondary, fontSize: 24, paddingHorizontal: 8 }}>
+          <Pressable onPress={() => setShowPassword(!showPassword)} className="px-2">
+            <Text className="text-zinc-500 dark:text-zinc-400">
               {showPassword ? '👁' : '👁‍🗨'}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
-      {error && <Text style={errorStyle}>{error}</Text>}
+      {error && <Text className={errorClasses}>{error}</Text>}
     </View>
   );
 };

@@ -1,85 +1,37 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
+import { Text, View } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useTheme } from '../../theme/ThemeContext';
 import { Button } from '../../components/Button';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<any, 'Onboarding2'>;
 
 const OnboardingScreen2: React.FC<Props> = ({ navigation }) => {
-  const { theme } = useTheme();
-
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.background,
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: 24,
-    },
-    safeArea: {
-      flex: 1,
-      width: '100%',
-    },
-    content: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    title: {
-      fontSize: 36,
-      fontWeight: '700',
-      color: theme.text,
-      marginBottom: 16,
-      textAlign: 'center',
-    },
-    subtitle: {
-      fontSize: 16,
-      color: theme.textSecondary,
-      textAlign: 'center',
-      lineHeight: 24,
-      marginBottom: 40,
-    },
-    icon: {
-      fontSize: 80,
-      marginBottom: 32,
-    },
-    buttonContainer: {
-      width: '100%',
-      gap: 12,
-    },
-    buttonRow: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-  });
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.content}>
-          <Text style={styles.icon}>🔐</Text>
-          <Text style={styles.title}>Secure & Private</Text>
-          <Text style={styles.subtitle}>
-            Your data is encrypted and protected. We never share your information.
+    <SafeAreaView className="flex-1 bg-white dark:bg-black">
+      <View className="flex-1 justify-between px-6 py-8">
+        <View className="flex-1 justify-center">
+          <View className="mb-10 self-start rounded-full border border-zinc-200 bg-white px-4 py-2 dark:border-zinc-800 dark:bg-black">
+            <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400">
+              02 / 04
+            </Text>
+          </View>
+
+          <Text className="text-5xl font-bold tracking-tight text-black dark:text-white">
+            Secure by default
           </Text>
+          <Text className="mt-4 max-w-[320px] text-base leading-7 text-zinc-500 dark:text-zinc-400">
+            Tokens are stored in SecureStore and refreshed automatically when needed.
+          </Text>
+
+          <View className="mt-12 h-56 items-center justify-center rounded-[40px] border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black">
+            <Text className="text-7xl">🔐</Text>
+          </View>
         </View>
 
-        <View style={styles.buttonContainer}>
-          <View style={styles.buttonRow}>
-            <Button
-              title="Back"
-              onPress={() => navigation.goBack()}
-              variant="secondary"
-              style={{ flex: 1 }}
-            />
-            <Button
-              title="Next"
-              onPress={() => navigation.navigate('Onboarding3')}
-              variant="primary"
-              style={{ flex: 1 }}
-            />
-          </View>
+        <View className="flex-row gap-3">
+          <Button title="Back" onPress={() => navigation.goBack()} variant="secondary" className="flex-1" />
+          <Button title="Next" onPress={() => navigation.navigate('Onboarding3')} variant="primary" className="flex-1" />
         </View>
       </View>
     </SafeAreaView>

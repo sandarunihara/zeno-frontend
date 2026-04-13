@@ -24,7 +24,9 @@
     "isolatedModules": true
   },
   "include": [
-    "src"
+    "src",
+    "global.d.ts",
+    "nativewind-env.d.ts"
   ],
   "exclude": [
     "node_modules",
