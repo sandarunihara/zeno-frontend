@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Zeno",
+    "slug": "zeno-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.zeno.app"
+    },
+    "android": {
+      "package": "com.zeno.app"
+    },
+    "plugins": ["expo-secure-store"]
+  }
+}
