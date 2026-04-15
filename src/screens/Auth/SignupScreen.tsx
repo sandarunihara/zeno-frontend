@@ -99,7 +99,7 @@ const SignupScreen: React.FC<Props> = ({ navigation }) => {
                 Join Zeno Today
               </Text>
 
-              <View className="mt-10 rounded-[32px]  bg-white p-5 dark:bg-black">
+              <View className="mt-10 rounded-[32px]  bg-white pt-5 dark:bg-black">
                 <View className="flex-row gap-3">
                   <View className="flex-1">
                     <Input
