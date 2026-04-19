@@ -1,7 +1,32 @@
 import axios, { AxiosInstance, AxiosError, AxiosResponse } from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+const RAW_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+const ANDROID_API_BASE_URL = process.env.EXPO_PUBLIC_ANDROID_API_BASE_URL;
+
+const resolveApiBaseUrl = (): string => {
+  if (Platform.OS === 'android' && ANDROID_API_BASE_URL) {
+    return ANDROID_API_BASE_URL;
+  }
+
+  // Android emulator cannot reach host machine via localhost/127.0.0.1.
+  if (Platform.OS === 'android') {
+    try {
+      const parsedUrl = new URL(RAW_API_BASE_URL);
+      if (parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1') {
+        parsedUrl.hostname = '10.0.2.2';
+        return parsedUrl.toString().replace(/\/$/, '');
+      }
+    } catch (error) {
+      console.warn('Invalid EXPO_PUBLIC_API_BASE_URL. Falling back to raw value.', error);
+    }
+  }
+
+  return RAW_API_BASE_URL;
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 export const axiosClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,

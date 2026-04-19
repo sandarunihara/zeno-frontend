@@ -1,13 +1,39 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
+// @ts-expect-error NativeWind global stylesheet side-effect import.
 import './global.css';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from './src/store/AuthContext';
-import { ThemeProvider } from './src/theme/ThemeContext';
+import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
+
+const RootNavigation: React.FC = () => {
+  const { theme, isDark } = useTheme();
+
+  const navigationTheme = useMemo(
+    () => ({
+      ...(isDark ? DarkTheme : DefaultTheme),
+      colors: {
+        ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
+        background: theme.background,
+        card: theme.background,
+        text: theme.text,
+        border: theme.border,
+        primary: '#5E5CE6',
+      },
+    }),
+    [isDark, theme.background, theme.border, theme.text]
+  );
+
+  return (
+    <NavigationContainer theme={navigationTheme}>
+      <AppNavigator />
+    </NavigationContainer>
+  );
+};
 
 export default function App() {
   return (
@@ -15,9 +41,7 @@ export default function App() {
       <SafeAreaProvider>
         <ThemeProvider>
           <AuthProvider>
-            <NavigationContainer>
-              <AppNavigator />
-            </NavigationContainer>
+            <RootNavigation />
           </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>

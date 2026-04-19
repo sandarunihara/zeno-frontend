@@ -25,6 +25,9 @@ const AppNavigator: React.FC = () => {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
+        contentStyle: { backgroundColor: theme.background },
+        animation: 'fade',
+        animationDuration: 200,
       }}
     >
       {!onboardingComplete ? (

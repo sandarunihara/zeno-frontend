@@ -1,27 +1,32 @@
 import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import DashboardScreen from '../screens/Dashboard/DashboardScreen';
+import ProfileScreen from '../screens/Profile/ProfileScreen';
 import { useTheme } from '../theme/ThemeContext';
+import { BottomNavigation } from '../components/BottomNavigation';
 
-const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
 
 const MainStack: React.FC = () => {
   const { theme } = useTheme();
 
   return (
-    <Stack.Navigator
+    <Tab.Navigator
+      sceneContainerStyle={{ backgroundColor: theme.background }}
       screenOptions={{
         headerShown: false,
       }}
+      tabBar={(props) => <BottomNavigation {...props} />}
     >
-      <Stack.Screen
+      <Tab.Screen
         name="Dashboard"
         component={DashboardScreen}
-        options={{
-          animationTypeForReplace: 'pop',
-        }}
       />
-    </Stack.Navigator>
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+      />
+    </Tab.Navigator>
   );
 };
 
