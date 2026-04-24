@@ -12,9 +12,9 @@ const MainStack: React.FC = () => {
 
   return (
     <Tab.Navigator
-      sceneContainerStyle={{ backgroundColor: theme.background }}
       screenOptions={{
         headerShown: false,
+        sceneStyle: { backgroundColor: theme.background },
       }}
       tabBar={(props) => <BottomNavigation {...props} />}
     >

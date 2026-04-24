@@ -1,0 +1,60 @@
+import { axiosClient } from './axiosClient';
+
+export interface MoodLog {
+  id: number;
+  userId: string;
+  energyScore: number;
+  sentiment?: string | null;
+  dataSource: string; 
+  loggedAt: string; 
+  isLight: boolean;
+}
+
+export interface MoodlogResponse {
+    success: boolean;
+    moodLog: MoodLog;
+    message: string;
+}
+
+export interface Task {
+  id: number;
+  userId: string; // UUID is handled as a string in TS
+  title: string;
+  description?: string; // Optional because it can be null
+  effort_level: string; 
+  deadline?: string;    // ISO-8601 string format (e.g., "2026-04-23T19:40:00")
+  is_critical: boolean;
+  status: string;
+  parentTaskId?: number;
+  hasMicroSteps: boolean;
+}
+
+export interface DashboardResponse {
+  currentEnergyScore: number;
+  empatheticMessage: string;
+  askConsent: boolean;
+  displayTasks: Task[];
+}
+
+export const dashboardApi = {
+    getMoodlog: async (): Promise<MoodlogResponse> =>{
+        const response = await axiosClient.get<MoodlogResponse>('/api/core/mood/latest');
+        return response.data;
+    },
+
+    createorupdateMoodlog: async (mood: number,isLight: boolean): Promise<MoodlogResponse> =>{
+        const response = await axiosClient.post<MoodlogResponse>(`/api/core/mood/create/${mood}/${isLight}`);
+        console.log(response.data);
+        
+        return response.data;
+    },
+
+    getDashboardTasks: async (keepItLight?: boolean): Promise<DashboardResponse> => {
+        const response = await axiosClient.get<DashboardResponse>('/api/core/tasks/dashboard', {
+            params: { 
+                keepItLight 
+            }
+        });
+        return response.data;
+    }
+};

@@ -52,10 +52,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
       });
 
-      const { accessToken, refreshToken } = response.data;
+      const { accesstoken, refreshtoken } = response.data;
 
-      await SecureStore.setItemAsync('accessToken', String(accessToken));
-      await SecureStore.setItemAsync('refreshToken', String(refreshToken));
+      await SecureStore.setItemAsync('accessToken', String(accesstoken));
+      await SecureStore.setItemAsync('refreshToken', String(refreshtoken));
 
       setIsLoggedIn(true);
     } catch (error) {
@@ -73,12 +73,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           password,
         });
         console.log("Signup response:", response.data);
-        
 
-        const { accessToken, refreshToken } = response.data;
 
-        await SecureStore.setItemAsync('accessToken', String(accessToken));
-        await SecureStore.setItemAsync('refreshToken', String(refreshToken));
+        const { accesstoken, refreshtoken } = response.data;
+
+        await SecureStore.setItemAsync('accessToken', String(accesstoken));
+        await SecureStore.setItemAsync('refreshToken', String(refreshtoken));
 
         setIsLoggedIn(true);
       } catch (error) {

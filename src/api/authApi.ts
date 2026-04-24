@@ -13,8 +13,8 @@ export interface LoginPayload {
 }
 
 export interface AuthResponse {
-  accessToken: string;
-  refreshToken: string;
+  accesstoken: string;
+  refreshtoken: string;
   message: string;
 }
 
@@ -30,8 +30,8 @@ export const authApi = {
   },
 
   refresh: async (refreshToken: string): Promise<AuthResponse> => {
-    const response = await axiosClient.post<AuthResponse>('/api/auth/refresh', {
-      refreshToken,
+    const response = await axiosClient.post<AuthResponse>('/api/auth/refresh-token', {
+      refreshtoken: refreshToken,
     });
     return response.data;
   },

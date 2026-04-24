@@ -36,6 +36,60 @@ export const axiosClient: AxiosInstance = axios.create({
   },
 });
 
+type RetryableRequestConfig = {
+  _retry?: boolean;
+  headers?: Record<string, string>;
+  url?: string;
+};
+
+let refreshPromise: Promise<string | null> | null = null;
+
+const isAuthRoute = (url?: string): boolean => {
+  if (!url) {
+    return false;
+  }
+  return (
+    url.includes('/api/auth/login') ||
+    url.includes('/api/auth/signup') ||
+    url.includes('/api/auth/refresh') ||
+    url.includes('/api/auth/refresh-token')
+  );
+};
+
+const isInvalidTokenResponse = (error: AxiosError): boolean => {
+  const status = error.response?.status;
+  const payloadMessage = (error.response?.data as { message?: string } | undefined)?.message;
+  const rawMessage = typeof payloadMessage === 'string' ? payloadMessage : error.message;
+  const normalizedMessage = rawMessage.toLowerCase();
+
+  // Core service can surface invalid JWT as 400/500 instead of 401.
+  return status === 401 || normalizedMessage.includes('invalid token');
+};
+
+const requestTokenRefresh = async (): Promise<string | null> => {
+  const refreshToken = await SecureStore.getItemAsync('refreshToken');
+
+  if (!refreshToken) {
+    return null;
+  }
+
+  const refreshResponse = await axios.post(`${API_BASE_URL}/api/auth/refresh-token`, {
+    refreshtoken: refreshToken,
+  });
+
+  const { accesstoken: newAccessToken, refreshtoken: newRefreshToken } = refreshResponse.data as {
+    accesstoken: string;
+    refreshtoken?: string;
+  };
+
+  await SecureStore.setItemAsync('accessToken', newAccessToken);
+  if (newRefreshToken) {
+    await SecureStore.setItemAsync('refreshToken', newRefreshToken);
+  }
+
+  return newAccessToken;
+};
+
 // Request interceptor: Add access token to every request
 axiosClient.interceptors.request.use(
   async (config) => {
@@ -56,43 +110,34 @@ axiosClient.interceptors.request.use(
 axiosClient.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as any;
+    const originalRequest = (error.config || {}) as RetryableRequestConfig;
 
-    // Check if error is 401 (Unauthorized) and we haven't already retried
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (!isAuthRoute(originalRequest.url) && isInvalidTokenResponse(error) && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
-        const refreshToken = await SecureStore.getItemAsync('refreshToken');
+        if (!refreshPromise) {
+          refreshPromise = requestTokenRefresh();
+        }
 
-        if (!refreshToken) {
-          // No refresh token available, user needs to login again
+        const newAccessToken = await refreshPromise;
+        refreshPromise = null;
+
+        if (!newAccessToken) {
           await SecureStore.deleteItemAsync('accessToken');
           await SecureStore.deleteItemAsync('refreshToken');
           return Promise.reject(error);
         }
 
-        // Call refresh endpoint
-        const refreshResponse = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
-          refreshToken,
-        });
+        originalRequest.headers = {
+          ...(originalRequest.headers || {}),
+          Authorization: `Bearer ${newAccessToken}`,
+        };
 
-        const { accessToken: newAccessToken, refreshToken: newRefreshToken } = refreshResponse.data;
-
-        // Save new tokens
-        await SecureStore.setItemAsync('accessToken', newAccessToken);
-        if (newRefreshToken) {
-          await SecureStore.setItemAsync('refreshToken', newRefreshToken);
-        }
-
-        // Update the original request with new token
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-
-        // Retry the original request
         return axiosClient(originalRequest);
       } catch (refreshError) {
         console.error('Token refresh failed:', refreshError);
-        // Refresh failed, logout user
+        refreshPromise = null;
         await SecureStore.deleteItemAsync('accessToken');
         await SecureStore.deleteItemAsync('refreshToken');
         return Promise.reject(refreshError);

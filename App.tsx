@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 // @ts-expect-error NativeWind global stylesheet side-effect import.
 import './global.css';
