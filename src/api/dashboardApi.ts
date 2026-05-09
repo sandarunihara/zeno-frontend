@@ -22,11 +22,12 @@ export interface Task {
   title: string;
   description?: string; // Optional because it can be null
   effort_level: string; 
-  deadline?: string;    // ISO-8601 string format (e.g., "2026-04-23T19:40:00")
+  deadline?: string | null;    // ISO-8601 string format (e.g., "2026-04-23T19:40:00")
   is_critical: boolean;
   status: string;
-  parentTaskId?: number;
+  parentTaskId?: number | null;
   hasMicroSteps: boolean;
+  microSteps?: Task[] | null;
 }
 
 export interface DashboardResponse {
@@ -44,7 +45,7 @@ export const dashboardApi = {
 
     createorupdateMoodlog: async (mood: number,isLight: boolean): Promise<MoodlogResponse> =>{
         const response = await axiosClient.post<MoodlogResponse>(`/api/core/mood/create/${mood}/${isLight}`);
-        console.log(response.data);
+        // console.log(response.data);
         
         return response.data;
     },

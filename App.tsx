@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import 'react-native-reanimated';
-// @ts-expect-error NativeWind global stylesheet side-effect import.
 import './global.css';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';

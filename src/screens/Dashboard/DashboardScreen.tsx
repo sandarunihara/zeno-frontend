@@ -1,14 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Bell, ChevronDown, ChevronRight, Circle, Mic } from 'lucide-react-native';
+import { Bell, ChevronDown, ChevronRight, Circle, Clock, Mic, AlertTriangle } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
-import { dashboardApi } from '../../api/dashboardApi';
-
-type TaskState = {
-  main: boolean;
-  sub: boolean[];
-};
+import { dashboardApi, Task } from '../../api/dashboardApi';
+import BrainDumpModal from '../../components/Dashboard/BrainDumpModal';
 
 const ACCENT = '#5E5CE6';
 const moodCheckShadowStyle = {
@@ -27,6 +23,42 @@ const moodCheckHighlightStyle = {
   elevation: 4,
 };
 
+/** Format an ISO-8601 deadline string into a human-friendly label */
+const formatDeadline = (deadline?: string | null): string | null => {
+  if (!deadline) return null;
+  const d = new Date(deadline);
+  const now = new Date();
+
+  // Today / Tomorrow helpers
+  const isToday =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const isTomorrow =
+    d.getFullYear() === tomorrow.getFullYear() &&
+    d.getMonth() === tomorrow.getMonth() &&
+    d.getDate() === tomorrow.getDate();
+
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  if (isToday) return `Today, ${time}`;
+  if (isTomorrow) return `Tomorrow, ${time}`;
+
+  const month = d.toLocaleString('default', { month: 'short' });
+  return `${month} ${d.getDate()}, ${time}`;
+};
+
+/** Check if a deadline is within the next 24 hours */
+const isUrgent = (deadline?: string | null): boolean => {
+  if (!deadline) return false;
+  const d = new Date(deadline);
+  const now = new Date();
+  const diff = d.getTime() - now.getTime();
+  return diff > 0 && diff < 24 * 60 * 60 * 1000;
+};
+
 const DashboardScreen: React.FC = () => {
   const { isDark } = useTheme();
   const [energyScore, setEnergyScore] = useState<number | null>(null);
@@ -34,18 +66,49 @@ const DashboardScreen: React.FC = () => {
   const [needsMoodCheck, setNeedsMoodCheck] = useState(false);
   const [askConsent, setAskConsent] = useState(false);
   const [keepItLight, setKeepItLight] = useState<boolean | null>(null);
-  const [exsistmoodlog, setExsistMoodlog] = useState({
-    mood : 0,
-    keepItLight : false
-  });
+  const [empatheticMessage, setEmpatheticMessage] = useState<string | null>(null);
 
-  const [morningExpanded, setMorningExpanded] = useState(true);
-  const [morningTask, setMorningTask] = useState<TaskState>({
-    main: false,
-    sub: [false, false, false],
-  });
-  const [clientCallDone, setClientCallDone] = useState(false);
-  const [afternoonTaskDone, setAfternoonTaskDone] = useState(false);
+  // Real tasks from the API
+  const [displayTasks, setDisplayTasks] = useState<Task[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [isBrainDumpVisible, setIsBrainDumpVisible] = useState(false);
+  const [lastThought, setLastThought] = useState<string | null>(null);
+
+  // Track checked state per task id
+  const [checkedTasks, setCheckedTasks] = useState<Record<number, boolean>>({});
+
+  // Track which parent tasks are expanded
+  const [expandedTasks, setExpandedTasks] = useState<Record<number, boolean>>({});
+
+  /** Store dashboard response data into state */
+  const applyDashboardData = useCallback((data: { displayTasks: Task[]; empatheticMessage: string; askConsent: boolean }) => {
+    setDisplayTasks(data.displayTasks ?? []);
+    setEmpatheticMessage(data.empatheticMessage ?? null);
+    // Auto-expand tasks that have micro steps
+    const expanded: Record<number, boolean> = {};
+    (data.displayTasks ?? []).forEach((t) => {
+      if (t.microSteps && t.microSteps.length > 0) {
+        expanded[t.id] = true;
+      }
+    });
+    setExpandedTasks(expanded);
+  }, []);
+
+  const fetchDashboardTasks = useCallback(async (mood?: number, isLight?: boolean) => {
+    try {
+      if (mood === undefined) {
+        console.warn("Mood is undefined, skipping dashboard tasks fetch");
+        return;
+      }
+      setTasksLoading(true);
+      const dashboardData = await dashboardApi.getDashboardTasks(isLight);
+      applyDashboardData(dashboardData);      
+    } catch (error) {
+      console.error("Failed to fetch dashboard tasks", error);
+    } finally {
+      setTasksLoading(false);
+    }
+  }, [applyDashboardData]);
 
   useEffect(() => {
     const fetchMoodlog = async () => {
@@ -53,8 +116,6 @@ const DashboardScreen: React.FC = () => {
         const response = await dashboardApi.getMoodlog();
         if (response.success && response.moodLog) {
           setEnergyScore(response.moodLog.energyScore);
-          console.log(response.moodLog.isLight);
-
           fetchDashboardTasks(response.moodLog.energyScore, response.moodLog.isLight);
 
           setNeedsMoodCheck(false);
@@ -71,26 +132,11 @@ const DashboardScreen: React.FC = () => {
     fetchMoodlog();
   }, []);
 
-  const fetchDashboardTasks = async (mood?: number, keepItLight?: boolean) => {
-    try{
-      if(mood === undefined) {
-        console.warn("Mood is undefined, skipping dashboard tasks fetch");
-        return;
-      } 
-      
-      const dashboardData = await dashboardApi.getDashboardTasks(keepItLight);
-      console.log(dashboardData);
-
-    }catch(error){
-        console.error("Failed to fetch dashboard tasks", error);
-    }
-  };
-
   const getEnergyLabel = () => {
     if (energyLoading) {
       return 'Loading...';
     }
-
+    
     if (energyScore === null) {
       return 'Unknown';
     }
@@ -118,24 +164,20 @@ const DashboardScreen: React.FC = () => {
         const response = await dashboardApi.createorupdateMoodlog(score, false);
          if (response.success && response.moodLog) {
           setEnergyScore(response.moodLog.energyScore);
-          console.log("low or mid");
+          setTasksLoading(true);
           const dashboardData = await dashboardApi.getDashboardTasks();
-          console.log(dashboardData);
-          
+          applyDashboardData(dashboardData);
+          setTasksLoading(false);
         } else {
           setNeedsMoodCheck(true);
         }
-        // OPTIONAL: Here is where you could also trigger a re-fetch of your 
-        // tasks to update the Smart Dashboard based on the new energy score!
       } catch (error) {
         console.error("Failed to save mood", error);
         // If it fails, revert the UI back so they can try again
         setNeedsMoodCheck(true);
         setEnergyScore(null);
       }
-
     }
-
   };
 
   const handleConsentChoice = async (isLight: boolean) => {
@@ -151,59 +193,240 @@ const DashboardScreen: React.FC = () => {
       const response = await dashboardApi.createorupdateMoodlog(energyScore, isLight);
       if (response.success && response.moodLog) {
         setEnergyScore(response.moodLog.energyScore);
+        setTasksLoading(true);
         const dashboardData = await dashboardApi.getDashboardTasks(isLight);
+        applyDashboardData(dashboardData);
+        setTasksLoading(false);
+        console.log("Updated Tasks based on consent:", dashboardData);
       }else {
         console.warn("Failed to update moodlog with consent choice, response:", response);
       }
-      // console.log("Updated Tasks based on consent:", dashboardData);
       
     } catch (error) {
       console.error("Failed to fetch tasks after consent", error);
     }
   };
-  
-  // useEffect(()=>{
-  //   const fetchDashboardTasks = async () => {
-  //     try {
 
-  //       if(exsistmoodlog.mood === null) {
-  //         console.warn("Energy score is null, skipping dashboard tasks fetch");
-  //         return;
-  //       }
-  //       const dashboardData = await dashboardApi.getDashboardTasks();
-        
-  //     } catch (error) {
-  //       console.error("Failed to fetch dashboard tasks", error);
-  //     }
-  //   };
-  //   fetchDashboardTasks();
-  // }, [exsistmoodlog]);
+  // ─── Toggle helpers ───────────────────────────────────────────────
 
-  const microSteps = useMemo(
-    () => [
-      'Analyze last quarter metrics',
-      'Draft projection report',
-      'Prepare slide deck summary',
-    ],
-    []
-  );
+  const toggleTaskChecked = (taskId: number) => {
+    setCheckedTasks((prev) => ({ ...prev, [taskId]: !prev[taskId] }));
+  };
 
-  const toggleMorningMain = () => {
-    const next = !morningTask.main;
-    setMorningTask({
-      main: next,
-      sub: morningTask.sub.map(() => next),
+  const toggleParentChecked = (task: Task) => {
+    const next = !checkedTasks[task.id];
+    const updates: Record<number, boolean> = { [task.id]: next };
+    if (task.microSteps) {
+      task.microSteps.forEach((ms) => {
+        updates[ms.id] = next;
+      });
+    }
+    setCheckedTasks((prev) => ({ ...prev, ...updates }));
+  };
+
+  const toggleMicroStep = (parentTask: Task, microStepId: number) => {
+    setCheckedTasks((prev) => {
+      const next = { ...prev, [microStepId]: !prev[microStepId] };
+      // Auto-check parent if all micro-steps are checked
+      if (parentTask.microSteps) {
+        const allChecked = parentTask.microSteps.every((ms) => next[ms.id]);
+        next[parentTask.id] = allChecked;
+      }
+      return next;
     });
   };
 
-  const toggleMorningSub = (index: number) => {
-    const nextSub = [...morningTask.sub];
-    nextSub[index] = !nextSub[index];
+  const toggleExpanded = (taskId: number) => {
+    setExpandedTasks((prev) => ({ ...prev, [taskId]: !prev[taskId] }));
+  };
 
-    setMorningTask({
-      sub: nextSub,
-      main: nextSub.every(Boolean),
-    });
+  // ─── Render helpers ───────────────────────────────────────────────
+
+  const renderCheck = (checked: boolean) => (
+    <View
+      className={[
+        'h-[22px] w-[22px] items-center justify-center rounded-full border-[1.6px]',
+        checked
+          ? 'border-[#5E5CE6] bg-[#5E5CE6]'
+          : 'border-zinc-300 dark:border-zinc-700',
+      ].join(' ')}
+    >
+      {checked ? (
+        <Text className="text-[11px] font-bold text-white leading-[13px]">✓</Text>
+      ) : null}
+    </View>
+  );
+
+  const renderDeadlineBadge = (deadline?: string | null) => {
+    const label = formatDeadline(deadline);
+    if (!label) return null;
+
+    const urgent = isUrgent(deadline);
+
+    return (
+      <View
+        className={[
+          'mt-1.5 flex-row items-center gap-1 self-start rounded-full px-2.5 py-1',
+          urgent
+            ? 'bg-red-50 dark:bg-red-950/30'
+            : 'bg-zinc-100 dark:bg-zinc-800/60',
+        ].join(' ')}
+      >
+        {urgent ? (
+          <AlertTriangle size={11} color={isDark ? '#FCA5A5' : '#EF4444'} strokeWidth={2.2} />
+        ) : (
+          <Clock size={11} color={isDark ? '#A1A1AA' : '#71717A'} strokeWidth={2.2} />
+        )}
+        <Text
+          className={[
+            'text-[11px] font-semibold',
+            urgent
+              ? 'text-red-600 dark:text-red-300'
+              : 'text-zinc-500 dark:text-zinc-400',
+          ].join(' ')}
+        >
+          {label}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderEffortBadge = (effort: string) => {
+    const colors: Record<string, { bg: string; text: string }> = {
+      Low: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-600 dark:text-emerald-300' },
+      Medium: { bg: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-600 dark:text-amber-300' },
+      High: { bg: 'bg-red-50 dark:bg-red-950/30', text: 'text-red-600 dark:text-red-300' },
+    };
+    const c = colors[effort] ?? colors.Medium;
+
+    return (
+      <View className={`rounded-full px-2 py-0.5 ${c.bg}`}>
+        <Text className={`text-[10px] font-bold uppercase tracking-wide ${c.text}`}>{effort}</Text>
+      </View>
+    );
+  };
+
+  /** Render a single task card — handles both parent tasks with micro-steps and simple tasks */
+  const renderTaskCard = (task: Task) => {
+    const hasMicro = task.microSteps && task.microSteps.length > 0;
+    const checked = !!checkedTasks[task.id];
+    const expanded = !!expandedTasks[task.id];
+
+    return (
+      <View
+        key={task.id}
+        className="mb-3 rounded-2xl border border-zinc-100 bg-white px-4 py-3.5 dark:border-zinc-900 dark:bg-black"
+        style={{
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.04,
+          shadowRadius: 3,
+          elevation: 1,
+        }}
+      >
+        {/* Main task row */}
+        <Pressable
+          className="flex-row items-start gap-3"
+          onPress={() => {
+            if (hasMicro) {
+              toggleExpanded(task.id);
+            } else {
+              toggleTaskChecked(task.id);
+            }
+          }}
+          android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5' }}
+        >
+          <View className="pt-0.5">
+            <Pressable
+              className="rounded-full"
+              hitSlop={8}
+              onPress={(e) => {
+                e.stopPropagation();
+                if (hasMicro) {
+                  toggleParentChecked(task);
+                } else {
+                  toggleTaskChecked(task.id);
+                }
+              }}
+            >
+              {renderCheck(checked)}
+            </Pressable>
+          </View>
+
+          <View className="flex-1">
+            <View className="flex-row items-center gap-2">
+              <Text
+                className={[
+                  'flex-1 text-base font-semibold',
+                  checked
+                    ? 'text-zinc-400 line-through dark:text-zinc-600'
+                    : 'text-zinc-900 dark:text-white',
+                ].join(' ')}
+              >
+                {task.title}
+              </Text>
+              {task.is_critical && (
+                <View className="rounded-full bg-red-500/10 px-2 py-0.5">
+                  <Text className="text-[10px] font-bold text-red-500">!</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Deadline + effort row */}
+            <View className="flex-row items-center gap-2 flex-wrap">
+              {renderDeadlineBadge(task.deadline)}
+              <View className="mt-1.5">
+                {renderEffortBadge(task.effort_level)}
+              </View>
+            </View>
+          </View>
+
+          {hasMicro ? (
+            expanded ? (
+              <ChevronDown size={18} color={isDark ? '#71717A' : '#94A3B8'} strokeWidth={2} />
+            ) : (
+              <ChevronRight size={18} color={isDark ? '#71717A' : '#94A3B8'} strokeWidth={2} />
+            )
+          ) : (
+            <Circle size={16} color="transparent" />
+          )}
+        </Pressable>
+
+        {/* Micro-steps */}
+        {hasMicro && expanded && task.microSteps ? (
+          <View className="mt-3 ml-[14px] gap-2.5 border-l border-zinc-100 pl-3 dark:border-zinc-800">
+            {task.microSteps.map((step) => {
+              const stepChecked = !!checkedTasks[step.id];
+              return (
+                <Pressable
+                  key={step.id}
+                  className="flex-row items-start gap-3"
+                  onPress={() => toggleMicroStep(task, step.id)}
+                  android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5' }}
+                >
+                  <View className="pt-0.5">
+                    {renderCheck(stepChecked)}
+                  </View>
+                  <View className="flex-1">
+                    <Text
+                      className={[
+                        'text-sm font-medium',
+                        stepChecked
+                          ? 'text-zinc-400 line-through dark:text-zinc-600'
+                          : 'text-zinc-600 dark:text-zinc-300',
+                      ].join(' ')}
+                    >
+                      {step.title}
+                    </Text>
+                    {renderDeadlineBadge(step.deadline)}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+      </View>
+    );
   };
 
   const renderConsentPopup = () => (
@@ -247,16 +470,11 @@ const DashboardScreen: React.FC = () => {
   </Modal>
 );
 
-  const renderCheck = (checked: boolean) => (
-    <View
-      className={[
-        'h-[22px] w-[22px] items-center justify-center rounded-full border-[1.6px] border-zinc-300 dark:border-zinc-700',
-        checked ? 'border-[#5E5CE6]' : '',
-      ].join(' ')}
-    >
-      {checked ? <View className="h-[10px] w-[10px] rounded-full bg-[#5E5CE6]" /> : null}
-    </View>
-  );
+  // Separate top-level tasks (no parentTaskId) — micro-steps are nested inside their parent
+  const topLevelTasks = displayTasks.filter((t) => !t.parentTaskId);
+
+  // Count pending tasks
+  const pendingCount = topLevelTasks.filter((t) => !checkedTasks[t.id]).length;
 
   return (
     <SafeAreaView className="flex-1 bg-[#F8F9FA] dark:bg-black">
@@ -325,6 +543,7 @@ const DashboardScreen: React.FC = () => {
             </View>
           )}
 
+          {/* Summary card */}
           <View className="mt-3 rounded-2xl border border-zinc-100 bg-white px-4 py-3 dark:border-zinc-900 dark:bg-black">
             <View className="flex-row items-center justify-between">
               <Text className="text-xs font-semibold uppercase tracking-[1.2px] text-zinc-400 dark:text-zinc-500">Today</Text>
@@ -332,13 +551,21 @@ const DashboardScreen: React.FC = () => {
                 <Text className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-300">Focus Mode</Text>
               </View>
             </View>
-            <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">2 priority tasks and 1 meeting pending.</Text>
+            <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+              {empatheticMessage
+                ? empatheticMessage
+                : tasksLoading
+                  ? 'Loading your tasks...'
+                  : `${pendingCount} task${pendingCount !== 1 ? 's' : ''} remaining today.`}
+            </Text>
           </View>
 
+          {/* Brain Dump */}
           <View className="mt-8 items-center justify-center">
             <View className="h-[156px] w-[156px] items-center justify-center rounded-full bg-[rgba(94,92,230,0.10)] dark:bg-[rgba(94,92,230,0.18)]">
               <Pressable
                 className="h-[112px] w-[112px] items-center justify-center rounded-full border border-indigo-100 bg-white dark:border-zinc-900 dark:bg-zinc-950"
+                onPress={() => setIsBrainDumpVisible(true)}
                 android_ripple={{ color: isDark ? '#312e81' : '#eef2ff', radius: 60 }}
               >
                 <Mic size={34} color={ACCENT} strokeWidth={2.1} />
@@ -347,102 +574,47 @@ const DashboardScreen: React.FC = () => {
             <Text className="mt-3 text-xs font-bold tracking-[2.2px] text-[#5E5CE6]">
               BRAIN DUMP
             </Text>
+            {lastThought && (
+              <View className="mt-4 px-10">
+                <Text className="text-center text-sm italic text-zinc-500 dark:text-zinc-400">
+                  "{lastThought}"
+                </Text>
+              </View>
+            )}
           </View>
 
+          {/* ─── Tasks Section ────────────────────────────────────── */}
           <View className="mb-2 mt-9 flex-row items-center justify-between">
             <Text className="text-[11px] font-bold tracking-[1.3px] text-zinc-400 dark:text-zinc-500">
-              MORNING BLOCK
+              YOUR TASKS
             </Text>
             <Text className="text-[11px] font-semibold tracking-[1.1px] text-zinc-400 dark:text-zinc-500">
-              08:00 - 12:00
+              {pendingCount} pending
             </Text>
           </View>
 
-          <View className="mb-3 rounded-2xl border border-zinc-100 bg-white px-4 py-3.5 dark:border-zinc-900 dark:bg-black">
-            <Pressable
-              className="flex-row items-center gap-3"
-              onPress={() => setMorningExpanded((prev) => !prev)}
-              android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5' }}
-            >
-              <Pressable
-                className="rounded-full"
-                hitSlop={8}
-                onPress={(event) => {
-                  event.stopPropagation();
-                  toggleMorningMain();
-                }}
-              >
-                {renderCheck(morningTask.main)}
-              </Pressable>
-              <Text className="flex-1 text-base font-semibold text-zinc-900 dark:text-white">
-                Q3 Strategy Review
-              </Text>
-              {morningExpanded ? (
-                <ChevronDown size={18} color={isDark ? '#71717A' : '#94A3B8'} strokeWidth={2} />
-              ) : (
-                <ChevronRight size={18} color={isDark ? '#71717A' : '#94A3B8'} strokeWidth={2} />
-              )}
-            </Pressable>
-
-            {morningExpanded ? (
-              <View className="mt-3 ml-[14px] gap-3 border-l border-zinc-100 pl-3 dark:border-zinc-900">
-                {microSteps.map((step, index) => (
-                  <Pressable
-                    key={step}
-                    className="flex-row items-center gap-3"
-                    onPress={() => toggleMorningSub(index)}
-                    android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5' }}
-                  >
-                    {renderCheck(morningTask.sub[index])}
-                    <Text className="flex-1 text-sm font-medium text-zinc-600 dark:text-zinc-300">
-                      {step}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-          </View>
-
-          <Pressable
-            className="mb-3 rounded-2xl border border-zinc-100 bg-white px-4 py-3.5 dark:border-zinc-900 dark:bg-black"
-            onPress={() => setClientCallDone((prev) => !prev)}
-            android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5' }}
-          >
-            <View className="flex-row items-center gap-3">
-              {renderCheck(clientCallDone)}
-              <Text className="flex-1 text-base font-semibold text-zinc-900 dark:text-white">
-                Client briefing call
-              </Text>
-              <Circle size={16} color="transparent" />
+          {tasksLoading ? (
+            <View className="items-center py-10">
+              <Text className="text-sm text-zinc-400 dark:text-zinc-500">Loading tasks...</Text>
             </View>
-          </Pressable>
-
-          <View className="mb-2 mt-4 flex-row items-center justify-between">
-            <Text className="text-[11px] font-bold tracking-[1.3px] text-zinc-400 dark:text-zinc-500">
-              AFTERNOON BLOCK
-            </Text>
-            <Text className="text-[11px] font-semibold tracking-[1.1px] text-zinc-400 dark:text-zinc-500">
-              13:00 - 17:00
-            </Text>
-          </View>
-
-          <Pressable
-            className="mb-3 rounded-2xl border border-zinc-100 bg-white px-4 py-3.5 dark:border-zinc-900 dark:bg-black"
-            onPress={() => setAfternoonTaskDone((prev) => !prev)}
-            android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5' }}
-          >
-            <View className="flex-row items-center gap-3">
-              {renderCheck(afternoonTaskDone)}
-              <Text className="flex-1 text-base font-semibold text-zinc-900 dark:text-white">
-                Deep work: Coding UI components
-              </Text>
-              <Circle size={16} color="transparent" />
+          ) : topLevelTasks.length === 0 && !needsMoodCheck && !energyLoading ? (
+            <View className="items-center py-10 rounded-2xl border border-zinc-100 bg-white dark:border-zinc-900 dark:bg-black">
+              <Text className="text-3xl mb-2">🎉</Text>
+              <Text className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">All caught up!</Text>
+              <Text className="text-xs text-zinc-400 dark:text-zinc-600 mt-1">No tasks for now. Enjoy your day!</Text>
             </View>
-          </Pressable>
+          ) : (
+            topLevelTasks.map((task) => renderTaskCard(task))
+          )}
         </ScrollView>
 
       </View>
       {renderConsentPopup()}
+      <BrainDumpModal
+        isVisible={isBrainDumpVisible}
+        onClose={() => setIsBrainDumpVisible(false)}
+        onSave={(text: string) => setLastThought(text)}
+      />
     </SafeAreaView>
   );
 };

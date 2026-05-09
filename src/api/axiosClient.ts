@@ -63,37 +63,72 @@ const isInvalidTokenResponse = (error: AxiosError): boolean => {
   const normalizedMessage = rawMessage.toLowerCase();
 
   // Core service can surface invalid JWT as 400/500 instead of 401.
-  return status === 401 || normalizedMessage.includes('invalid token');
+  // We also check for 403 Forbidden which some gateways return for expired tokens.
+  return (
+    status === 401 ||
+    status === 403 ||
+    normalizedMessage.includes('invalid token') ||
+    normalizedMessage.includes('expired token') ||
+    normalizedMessage.includes('token expired') ||
+    normalizedMessage.includes('unauthorized')
+  );
 };
 
 const requestTokenRefresh = async (): Promise<string | null> => {
-  const refreshToken = await SecureStore.getItemAsync('refreshToken');
+  try {
+    const refreshToken = await SecureStore.getItemAsync('refreshToken');
 
-  if (!refreshToken) {
-    return null;
+    if (!refreshToken) {
+      console.warn('No refresh token found in SecureStore.');
+      return null;
+    }
+
+    // Use axiosClient to benefit from baseURL and other defaults, 
+    // but pass a flag or handle it to avoid infinite loops if needed.
+    // However, isAuthRoute already prevents the interceptor from re-triggering.
+    const refreshResponse = await axios.post(`${API_BASE_URL}/api/auth/refresh-token`, {
+      refreshtoken: refreshToken,
+    });
+
+    const { accesstoken: newAccessToken, refreshtoken: newRefreshToken } = refreshResponse.data as {
+      accesstoken: string;
+      refreshtoken?: string;
+    };
+
+    if (!newAccessToken) {
+      console.error('Refresh response did not contain an access token.');
+      return null;
+    }
+
+    await SecureStore.setItemAsync('accessToken', newAccessToken);
+    if (newRefreshToken) {
+      await SecureStore.setItemAsync('refreshToken', newRefreshToken);
+    }
+
+    return newAccessToken;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error('Refresh API call failed:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+    } else {
+      console.error('Unexpected error during token refresh:', error);
+    }
+    throw error;
   }
-
-  const refreshResponse = await axios.post(`${API_BASE_URL}/api/auth/refresh-token`, {
-    refreshtoken: refreshToken,
-  });
-
-  const { accesstoken: newAccessToken, refreshtoken: newRefreshToken } = refreshResponse.data as {
-    accesstoken: string;
-    refreshtoken?: string;
-  };
-
-  await SecureStore.setItemAsync('accessToken', newAccessToken);
-  if (newRefreshToken) {
-    await SecureStore.setItemAsync('refreshToken', newRefreshToken);
-  }
-
-  return newAccessToken;
 };
 
 // Request interceptor: Add access token to every request
 axiosClient.interceptors.request.use(
   async (config) => {
     try {
+      // Don't add Authorization header to auth routes
+      if (isAuthRoute(config.url)) {
+        return config;
+      }
+
       const accessToken = await SecureStore.getItemAsync('accessToken');
       if (accessToken) {
         config.headers.Authorization = `Bearer ${accessToken}`;
@@ -112,7 +147,12 @@ axiosClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = (error.config || {}) as RetryableRequestConfig;
 
-    if (!isAuthRoute(originalRequest.url) && isInvalidTokenResponse(error) && !originalRequest._retry) {
+    // If it's an auth route, don't try to refresh (to avoid loops)
+    if (isAuthRoute(originalRequest.url)) {
+      return Promise.reject(error);
+    }
+
+    if (isInvalidTokenResponse(error) && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
@@ -136,10 +176,14 @@ axiosClient.interceptors.response.use(
 
         return axiosClient(originalRequest);
       } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError);
+        // Token refresh failed (e.g. refresh token expired)
         refreshPromise = null;
         await SecureStore.deleteItemAsync('accessToken');
         await SecureStore.deleteItemAsync('refreshToken');
+        
+        // You might want to trigger a logout here or redirect to login
+        console.error('Token refresh failed, tokens cleared.');
+        
         return Promise.reject(refreshError);
       }
     }
