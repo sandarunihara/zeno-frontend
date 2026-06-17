@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { DeviceEventEmitter } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { axiosClient } from '../api/axiosClient';
 
@@ -43,6 +44,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     checkAuthStatus();
+
+    const logoutListener = DeviceEventEmitter.addListener('auth:logout', () => {
+      setIsLoggedIn(false);
+      setUser(null);
+    });
+
+    return () => {
+      logoutListener.remove();
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

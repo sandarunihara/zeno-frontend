@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosError, AxiosResponse } from 'axios';
 import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import { Platform, DeviceEventEmitter } from 'react-native';
 
 const RAW_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
 const ANDROID_API_BASE_URL = process.env.EXPO_PUBLIC_ANDROID_API_BASE_URL;
@@ -181,8 +181,9 @@ axiosClient.interceptors.response.use(
         await SecureStore.deleteItemAsync('accessToken');
         await SecureStore.deleteItemAsync('refreshToken');
         
-        // You might want to trigger a logout here or redirect to login
-        console.error('Token refresh failed, tokens cleared.');
+        // Trigger a logout event to notify AuthContext
+        console.error('Token refresh failed, tokens cleared. Emitting auth:logout event.');
+        DeviceEventEmitter.emit('auth:logout');
         
         return Promise.reject(refreshError);
       }

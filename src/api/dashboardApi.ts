@@ -37,6 +37,16 @@ export interface DashboardResponse {
   displayTasks: Task[];
 }
 
+export interface AiTranscriptRequest {
+  transcript: string;
+}
+
+export interface AiTAskResponce{
+    success: boolean;
+    message: string;
+    data: Task[];
+}
+
 export const dashboardApi = {
     getMoodlog: async (): Promise<MoodlogResponse> =>{
         const response = await axiosClient.get<MoodlogResponse>('/api/core/mood/latest');
@@ -45,7 +55,6 @@ export const dashboardApi = {
 
     createorupdateMoodlog: async (mood: number,isLight: boolean): Promise<MoodlogResponse> =>{
         const response = await axiosClient.post<MoodlogResponse>(`/api/core/mood/create/${mood}/${isLight}`);
-        // console.log(response.data);
         
         return response.data;
     },
@@ -56,6 +65,12 @@ export const dashboardApi = {
                 keepItLight 
             }
         });
+        return response.data;
+    },
+    
+    createTaskFromTranscript: async (transcript: string): Promise<AiTAskResponce> => {
+        const payload: AiTranscriptRequest = { transcript };
+        const response = await axiosClient.post<AiTAskResponce>('/api/core/tasks/ai-transcript', payload);
         return response.data;
     }
 };

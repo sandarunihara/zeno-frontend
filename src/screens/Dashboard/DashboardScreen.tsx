@@ -94,6 +94,8 @@ const DashboardScreen: React.FC = () => {
     setExpandedTasks(expanded);
   }, []);
 
+  // TODO : if there is null isLight and askcontent is true need to update isLight
+
   const fetchDashboardTasks = useCallback(async (mood?: number, isLight?: boolean) => {
     try {
       if (mood === undefined) {
@@ -102,7 +104,7 @@ const DashboardScreen: React.FC = () => {
       }
       setTasksLoading(true);
       const dashboardData = await dashboardApi.getDashboardTasks(isLight);
-      applyDashboardData(dashboardData);      
+      applyDashboardData(dashboardData);
     } catch (error) {
       console.error("Failed to fetch dashboard tasks", error);
     } finally {
@@ -136,7 +138,7 @@ const DashboardScreen: React.FC = () => {
     if (energyLoading) {
       return 'Loading...';
     }
-    
+
     if (energyScore === null) {
       return 'Unknown';
     }
@@ -148,7 +150,6 @@ const DashboardScreen: React.FC = () => {
     if (energyScore <= 7) {
       return 'Moderate';
     }
-
     return 'High';
   };
 
@@ -156,13 +157,13 @@ const DashboardScreen: React.FC = () => {
     // Optimistic UI update: instantly hide emojis and show the pill
     setEnergyScore(score);
     setNeedsMoodCheck(false);
-    if(score >= 8) {
+    if (score >= 8) {
       setAskConsent(true);
-    }else{
+    } else {
       try {
         // Call the backend API we set up earlier!
         const response = await dashboardApi.createorupdateMoodlog(score, false);
-         if (response.success && response.moodLog) {
+        if (response.success && response.moodLog) {
           setEnergyScore(response.moodLog.energyScore);
           setTasksLoading(true);
           const dashboardData = await dashboardApi.getDashboardTasks();
@@ -183,10 +184,10 @@ const DashboardScreen: React.FC = () => {
   const handleConsentChoice = async (isLight: boolean) => {
     setKeepItLight(isLight);
     setAskConsent(false);
-    
+
     // Now we re-fetch the tasks with the user's preference
     try {
-      if(energyScore === null) {
+      if (energyScore === null) {
         console.warn("Energy score is null, cannot update moodlog with consent choice");
         return;
       }
@@ -198,10 +199,10 @@ const DashboardScreen: React.FC = () => {
         applyDashboardData(dashboardData);
         setTasksLoading(false);
         console.log("Updated Tasks based on consent:", dashboardData);
-      }else {
+      } else {
         console.warn("Failed to update moodlog with consent choice, response:", response);
       }
-      
+
     } catch (error) {
       console.error("Failed to fetch tasks after consent", error);
     }
@@ -430,45 +431,45 @@ const DashboardScreen: React.FC = () => {
   };
 
   const renderConsentPopup = () => (
-  <Modal
-    transparent
-    visible={askConsent}
-    animationType="fade"
-    onRequestClose={() => setAskConsent(false)}
-  >
-    <View className="flex-1 items-center justify-center bg-black/40 px-6">
-      <View className="w-full rounded-[28px] bg-white p-6 shadow-2xl dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800">
-        <View className="items-center">
-          <View className="h-12 w-12 items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-950/30">
-            <Text className="text-2xl">💪</Text>
+    <Modal
+      transparent
+      visible={askConsent}
+      animationType="fade"
+      onRequestClose={() => setAskConsent(false)}
+    >
+      <View className="flex-1 items-center justify-center bg-black/40 px-6">
+        <View className="w-full rounded-[28px] bg-white p-6 shadow-2xl dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800">
+          <View className="items-center">
+            <View className="h-12 w-12 items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-950/30">
+              <Text className="text-2xl">💪</Text>
+            </View>
+            <Text className="mt-4 text-center text-xl font-bold text-zinc-900 dark:text-white">
+              High Energy Detected!
+            </Text>
+            <Text className="mt-2 text-center text-[15px] leading-5 text-zinc-500 dark:text-zinc-400">
+              You're feeling great today. Do you want to tackle your most difficult tasks, or would you prefer to keep your day light?
+            </Text>
           </View>
-          <Text className="mt-4 text-center text-xl font-bold text-zinc-900 dark:text-white">
-            High Energy Detected!
-          </Text>
-          <Text className="mt-2 text-center text-[15px] leading-5 text-zinc-500 dark:text-zinc-400">
-            You're feeling great today. Do you want to tackle your most difficult tasks, or would you prefer to keep your day light?
-          </Text>
-        </View>
 
-        <View className="mt-8 gap-3">
-          <Pressable
-            onPress={() => handleConsentChoice(false)}
-            className="w-full rounded-2xl bg-[#5E5CE6] py-4 active:opacity-90"
-          >
-            <Text className="text-center font-bold text-white">Let's Crush It!</Text>
-          </Pressable>
+          <View className="mt-8 gap-3">
+            <Pressable
+              onPress={() => handleConsentChoice(false)}
+              className="w-full rounded-2xl bg-[#5E5CE6] py-4 active:opacity-90"
+            >
+              <Text className="text-center font-bold text-white">Let's Crush It!</Text>
+            </Pressable>
 
-          <Pressable
-            onPress={() => handleConsentChoice(true)}
-            className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-4 dark:border-zinc-800 dark:bg-zinc-800/50 active:opacity-70"
-          >
-            <Text className="text-center font-bold text-zinc-700 dark:text-zinc-300">Keep It Light</Text>
-          </Pressable>
+            <Pressable
+              onPress={() => handleConsentChoice(true)}
+              className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-4 dark:border-zinc-800 dark:bg-zinc-800/50 active:opacity-70"
+            >
+              <Text className="text-center font-bold text-zinc-700 dark:text-zinc-300">Keep It Light</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
-    </View>
-  </Modal>
-);
+    </Modal>
+  );
 
   // Separate top-level tasks (no parentTaskId) — micro-steps are nested inside their parent
   const topLevelTasks = displayTasks.filter((t) => !t.parentTaskId);
@@ -551,13 +552,21 @@ const DashboardScreen: React.FC = () => {
                 <Text className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-300">Focus Mode</Text>
               </View>
             </View>
+            {
+              needsMoodCheck ? 
+            (<Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+               To set your daily priorities, please tell us how you're feeling today.
+            </Text>) : (
             <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
               {empatheticMessage
                 ? empatheticMessage
                 : tasksLoading
                   ? 'Loading your tasks...'
-                  : `${pendingCount} task${pendingCount !== 1 ? 's' : ''} remaining today.`}
+                  : `${pendingCount===0 ? 'All Clear!' : pendingCount} task${pendingCount !== 1 ? 's' : ''} remaining today.`
+              }
             </Text>
+            )
+            }
           </View>
 
           {/* Brain Dump */}
@@ -584,20 +593,38 @@ const DashboardScreen: React.FC = () => {
           </View>
 
           {/* ─── Tasks Section ────────────────────────────────────── */}
-          <View className="mb-2 mt-9 flex-row items-center justify-between">
-            <Text className="text-[11px] font-bold tracking-[1.3px] text-zinc-400 dark:text-zinc-500">
-              YOUR TASKS
-            </Text>
-            <Text className="text-[11px] font-semibold tracking-[1.1px] text-zinc-400 dark:text-zinc-500">
-              {pendingCount} pending
-            </Text>
-          </View>
+          {
+            displayTasks.length > 0 ? (
+              <View className="mb-2 mt-9 flex-row items-center justify-between">
+                <Text className="text-[11px] font-bold tracking-[1.3px] text-zinc-400 dark:text-zinc-500">
+                  YOUR TASKS
+                </Text>
+                <Text className="text-[11px] font-semibold tracking-[1.1px] text-zinc-400 dark:text-zinc-500">
+                  {pendingCount} pending
+                </Text>
+              </View>
+            ) : (
+              <View className="mb-2 mt-9 flex-row items-center justify-between opacity-60">
+                <Text className="text-[11px] font-bold tracking-[1.3px] text-zinc-400 dark:text-zinc-500">
+                  YOUR TASKS
+                </Text>
+              </View>
+            )
+          }
 
           {tasksLoading ? (
             <View className="items-center py-10">
               <Text className="text-sm text-zinc-400 dark:text-zinc-500">Loading tasks...</Text>
             </View>
-          ) : topLevelTasks.length === 0 && !needsMoodCheck && !energyLoading ? (
+          ) : needsMoodCheck ? (
+            <View className="items-center py-10 rounded-2xl border border-indigo-100/50 bg-indigo-50/30 dark:border-indigo-900/30 dark:bg-indigo-950/20 px-6">
+              <Text className="text-3xl mb-3">👋</Text>
+              <Text className="text-sm font-semibold text-indigo-900 dark:text-indigo-300 text-center">Let's check in first!</Text>
+              <Text className="text-xs text-indigo-700/80 dark:text-indigo-400/80 mt-1.5 text-center leading-5">
+                Log your energy level at the top of the screen so we can personalize your task list for today.
+              </Text>
+            </View>
+          ) : topLevelTasks.length === 0 && !energyLoading ? (
             <View className="items-center py-10 rounded-2xl border border-zinc-100 bg-white dark:border-zinc-900 dark:bg-black">
               <Text className="text-3xl mb-2">🎉</Text>
               <Text className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">All caught up!</Text>
@@ -613,7 +640,12 @@ const DashboardScreen: React.FC = () => {
       <BrainDumpModal
         isVisible={isBrainDumpVisible}
         onClose={() => setIsBrainDumpVisible(false)}
-        onSave={(text: string) => setLastThought(text)}
+        onSave={(text: string) => {
+          setLastThought(text);
+          if (energyScore !== null) {
+            fetchDashboardTasks(energyScore, keepItLight ?? undefined);
+          }
+        }}
       />
     </SafeAreaView>
   );

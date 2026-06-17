@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import 'react-native-reanimated';
 import './global.css';
+import 'react-native-reanimated';
+
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
