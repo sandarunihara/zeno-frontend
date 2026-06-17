@@ -47,6 +47,29 @@ export interface AiTAskResponce{
     data: Task[];
 }
 
+export interface TaskDetailResponse {
+  success: boolean;
+  task: Task;
+  microSteps: Task[] | null;
+  parentTask: Task | null;
+  message: string;
+}
+
+export interface ManualTaskRequest {
+    title: string;
+    description?: string;
+    effortLevel: string;
+    deadline?: string | null;
+    isCritical: boolean;
+    status: string;
+}
+
+export interface TaskResponce {
+    success: boolean;
+    task: Task;
+    message: string;
+}
+
 export const dashboardApi = {
     getMoodlog: async (): Promise<MoodlogResponse> =>{
         const response = await axiosClient.get<MoodlogResponse>('/api/core/mood/latest');
@@ -71,6 +94,26 @@ export const dashboardApi = {
     createTaskFromTranscript: async (transcript: string): Promise<AiTAskResponce> => {
         const payload: AiTranscriptRequest = { transcript };
         const response = await axiosClient.post<AiTAskResponce>('/api/core/tasks/ai-transcript', payload);
+        return response.data;
+    },
+
+    getAllTasks: async (): Promise<Task[]> => {
+        const response = await axiosClient.get<Task[]>('/api/core/tasks/all');
+        return response.data;
+    },
+
+    getTaskById: async (id: number): Promise<TaskDetailResponse> => {
+        const response = await axiosClient.get<TaskDetailResponse>(`/api/core/tasks/${id}`);
+        return response.data;
+    },
+
+    updateTask: async (id: number, request: ManualTaskRequest): Promise<TaskResponce> => {
+        const response = await axiosClient.post<TaskResponce>(`/api/core/tasks/updatetask/${id}`, request);
+        return response.data;
+    },
+
+    createManualTask: async (request: ManualTaskRequest): Promise<TaskResponce> => {
+        const response = await axiosClient.post<TaskResponce>('/api/core/tasks/manual', request);
         return response.data;
     }
 };

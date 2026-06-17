@@ -6,6 +6,8 @@ import { useTheme } from '../theme/ThemeContext';
 import AuthStack from './AuthStack';
 import MainStack from './MainStack';
 import OnboardingStack from './OnboardingStack';
+import AllTasksScreen from '../screens/Dashboard/AllTasksScreen';
+import TaskDetailScreen from '../screens/Dashboard/TaskDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -33,7 +35,11 @@ const AppNavigator: React.FC = () => {
       {!onboardingComplete ? (
         <Stack.Screen name="OnboardingStack" component={OnboardingStack} />
       ) : isLoggedIn ? (
-        <Stack.Screen name="MainStack" component={MainStack} />
+        <>
+          <Stack.Screen name="MainStack" component={MainStack} />
+          <Stack.Screen name="AllTasks" component={AllTasksScreen} />
+          <Stack.Screen name="TaskDetail" component={TaskDetailScreen} />
+        </>
       ) : (
         <Stack.Screen name="AuthStack" component={AuthStack} />
       )}

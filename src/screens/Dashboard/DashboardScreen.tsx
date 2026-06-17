@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Bell, ChevronDown, ChevronRight, Circle, Clock, Mic, AlertTriangle } from 'lucide-react-native';
+import { Bell, ChevronDown, ChevronRight, Circle, Clock, Mic, AlertTriangle, RefreshCw, Plus } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { dashboardApi, Task } from '../../api/dashboardApi';
 import BrainDumpModal from '../../components/Dashboard/BrainDumpModal';
+import CreateTaskModal from '../../components/Dashboard/CreateTaskModal';
+import { useNavigation } from '@react-navigation/native';
 
 const ACCENT = '#5E5CE6';
 const moodCheckShadowStyle = {
@@ -61,6 +63,7 @@ const isUrgent = (deadline?: string | null): boolean => {
 
 const DashboardScreen: React.FC = () => {
   const { isDark } = useTheme();
+  const navigation = useNavigation<any>();
   const [energyScore, setEnergyScore] = useState<number | null>(null);
   const [energyLoading, setEnergyLoading] = useState(true);
   const [needsMoodCheck, setNeedsMoodCheck] = useState(false);
@@ -72,6 +75,7 @@ const DashboardScreen: React.FC = () => {
   const [displayTasks, setDisplayTasks] = useState<Task[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [isBrainDumpVisible, setIsBrainDumpVisible] = useState(false);
+  const [isCreateTaskVisible, setIsCreateTaskVisible] = useState(false);
   const [lastThought, setLastThought] = useState<string | null>(null);
 
   // Track checked state per task id
@@ -112,27 +116,29 @@ const DashboardScreen: React.FC = () => {
     }
   }, [applyDashboardData]);
 
-  useEffect(() => {
-    const fetchMoodlog = async () => {
-      try {
-        const response = await dashboardApi.getMoodlog();
-        if (response.success && response.moodLog) {
-          setEnergyScore(response.moodLog.energyScore);
-          fetchDashboardTasks(response.moodLog.energyScore, response.moodLog.isLight);
+  const fetchMoodlog = useCallback(async () => {
+    setEnergyLoading(true);
+    try {
+      const response = await dashboardApi.getMoodlog();
+      if (response.success && response.moodLog) {
+        setEnergyScore(response.moodLog.energyScore);
+        fetchDashboardTasks(response.moodLog.energyScore, response.moodLog.isLight);
 
-          setNeedsMoodCheck(false);
-        } else {
-          setNeedsMoodCheck(true);
-        }
-      } catch {
+        setNeedsMoodCheck(false);
+      } else {
         setNeedsMoodCheck(true);
-        setEnergyScore(null);
-      } finally {
-        setEnergyLoading(false);
       }
-    };
+    } catch {
+      setNeedsMoodCheck(true);
+      setEnergyScore(null);
+    } finally {
+      setEnergyLoading(false);
+    }
+  }, [fetchDashboardTasks]);
+
+  useEffect(() => {
     fetchMoodlog();
-  }, []);
+  }, [fetchMoodlog]);
 
   const getEnergyLabel = () => {
     if (energyLoading) {
@@ -327,14 +333,8 @@ const DashboardScreen: React.FC = () => {
       >
         {/* Main task row */}
         <Pressable
-          className="flex-row items-start gap-3"
-          onPress={() => {
-            if (hasMicro) {
-              toggleExpanded(task.id);
-            } else {
-              toggleTaskChecked(task.id);
-            }
-          }}
+          className="flex-row items-start gap-3 flex-1"
+          onPress={() => navigation.navigate('TaskDetail', { taskId: task.id })}
           android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5' }}
         >
           <View className="pt-0.5">
@@ -381,17 +381,17 @@ const DashboardScreen: React.FC = () => {
               </View>
             </View>
           </View>
-
-          {hasMicro ? (
-            expanded ? (
-              <ChevronDown size={18} color={isDark ? '#71717A' : '#94A3B8'} strokeWidth={2} />
-            ) : (
-              <ChevronRight size={18} color={isDark ? '#71717A' : '#94A3B8'} strokeWidth={2} />
-            )
-          ) : (
-            <Circle size={16} color="transparent" />
-          )}
         </Pressable>
+
+        {hasMicro ? (
+          <Pressable 
+            className="absolute right-4 top-4 p-2 -m-2 rounded-full" 
+            onPress={() => toggleExpanded(task.id)}
+            hitSlop={8}
+          >
+            {expanded ? <ChevronDown size={18} color={isDark ? '#71717A' : '#94A3B8'} strokeWidth={2} /> : <ChevronRight size={18} color={isDark ? '#71717A' : '#94A3B8'} strokeWidth={2} />}
+          </Pressable>
+        ) : null}
 
         {/* Micro-steps */}
         {hasMicro && expanded && task.microSteps ? (
@@ -402,11 +402,20 @@ const DashboardScreen: React.FC = () => {
                 <Pressable
                   key={step.id}
                   className="flex-row items-start gap-3"
-                  onPress={() => toggleMicroStep(task, step.id)}
+                  onPress={() => navigation.navigate('TaskDetail', { taskId: step.id })}
                   android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5' }}
                 >
                   <View className="pt-0.5">
-                    {renderCheck(stepChecked)}
+                    <Pressable
+                      className="rounded-full"
+                      hitSlop={8}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        toggleMicroStep(task, step.id);
+                      }}
+                    >
+                      {renderCheck(stepChecked)}
+                    </Pressable>
                   </View>
                   <View className="flex-1">
                     <Text
@@ -501,8 +510,10 @@ const DashboardScreen: React.FC = () => {
             </Pressable>
           </View>
           {energyLoading ? (
-            <View className="mt-4 self-start rounded-full border border-zinc-100 bg-zinc-50 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900">
-              <Text className="text-[13px] font-semibold text-zinc-400">Loading energy...</Text>
+            <View className="mt-4 flex-row items-center justify-between">
+              <View className="self-start rounded-full border border-zinc-100 bg-zinc-50 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900">
+                <Text className="text-[13px] font-semibold text-zinc-400">Loading energy...</Text>
+              </View>
             </View>
           ) : needsMoodCheck ? (
             <View
@@ -537,10 +548,19 @@ const DashboardScreen: React.FC = () => {
               </Pressable>
             </View>
           ) : (
-            <View className="mt-4 self-start rounded-full border border-orange-100 bg-orange-50 px-3 py-1.5 dark:border-zinc-800 dark:bg-zinc-900">
-              <Text className="text-[13px] font-semibold text-orange-800 dark:text-orange-200">
-                ⚡ Energy: {getEnergyLabel()} ({energyScore !== null ? energyScore * 10 : '--'}%)
-              </Text>
+            <View className="mt-4 flex-row items-center justify-between">
+              <View className="self-start rounded-full border border-orange-100 bg-orange-50 px-3 py-1.5 dark:border-zinc-800 dark:bg-zinc-900">
+                <Text className="text-[13px] font-semibold text-orange-800 dark:text-orange-200">
+                  ⚡ Energy: {getEnergyLabel()} ({energyScore !== null ? energyScore * 10 : '--'}%)
+                </Text>
+              </View>
+              <Pressable
+                onPress={fetchMoodlog}
+                className="h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black"
+                android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5', radius: 18 }}
+              >
+                <RefreshCw size={16} color={isDark ? '#E4E4E7' : '#334155'} strokeWidth={1.9} />
+              </Pressable>
             </View>
           )}
 
@@ -583,13 +603,6 @@ const DashboardScreen: React.FC = () => {
             <Text className="mt-3 text-xs font-bold tracking-[2.2px] text-[#5E5CE6]">
               BRAIN DUMP
             </Text>
-            {lastThought && (
-              <View className="mt-4 px-10">
-                <Text className="text-center text-sm italic text-zinc-500 dark:text-zinc-400">
-                  "{lastThought}"
-                </Text>
-              </View>
-            )}
           </View>
 
           {/* ─── Tasks Section ────────────────────────────────────── */}
@@ -599,15 +612,29 @@ const DashboardScreen: React.FC = () => {
                 <Text className="text-[11px] font-bold tracking-[1.3px] text-zinc-400 dark:text-zinc-500">
                   YOUR TASKS
                 </Text>
-                <Text className="text-[11px] font-semibold tracking-[1.1px] text-zinc-400 dark:text-zinc-500">
-                  {pendingCount} pending
-                </Text>
+                <View className="flex-row items-center gap-3">
+                  <Text className="text-[11px] font-semibold tracking-[1.1px] text-zinc-400 dark:text-zinc-500">
+                    {pendingCount} pending
+                  </Text>
+                  <Pressable 
+                    onPress={() => setIsCreateTaskVisible(true)}
+                    className="h-7 w-7 items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-950/40"
+                  >
+                    <Plus size={14} color="#5E5CE6" strokeWidth={2.5} />
+                  </Pressable>
+                </View>
               </View>
             ) : (
               <View className="mb-2 mt-9 flex-row items-center justify-between opacity-60">
                 <Text className="text-[11px] font-bold tracking-[1.3px] text-zinc-400 dark:text-zinc-500">
                   YOUR TASKS
                 </Text>
+                <Pressable 
+                  onPress={() => setIsCreateTaskVisible(true)}
+                  className="h-7 w-7 items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-950/40"
+                >
+                  <Plus size={14} color="#5E5CE6" strokeWidth={2.5} />
+                </Pressable>
               </View>
             )
           }
@@ -631,7 +658,15 @@ const DashboardScreen: React.FC = () => {
               <Text className="text-xs text-zinc-400 dark:text-zinc-600 mt-1">No tasks for now. Enjoy your day!</Text>
             </View>
           ) : (
-            topLevelTasks.map((task) => renderTaskCard(task))
+            <>
+              {topLevelTasks.map((task) => renderTaskCard(task))}
+              <Pressable
+                className="mt-4 mb-6 items-center justify-center rounded-2xl border border-zinc-200 bg-white py-3.5 dark:border-zinc-800 dark:bg-zinc-900 active:opacity-70"
+                onPress={() => navigation.navigate('AllTasks')}
+              >
+                <Text className="font-bold text-zinc-700 dark:text-zinc-300">View All Tasks</Text>
+              </Pressable>
+            </>
           )}
         </ScrollView>
 
@@ -641,11 +676,14 @@ const DashboardScreen: React.FC = () => {
         isVisible={isBrainDumpVisible}
         onClose={() => setIsBrainDumpVisible(false)}
         onSave={(text: string) => {
-          setLastThought(text);
-          if (energyScore !== null) {
-            fetchDashboardTasks(energyScore, keepItLight ?? undefined);
-          }
+          // setLastThought(text);
+          fetchMoodlog();
         }}
+      />
+      <CreateTaskModal
+        isVisible={isCreateTaskVisible}
+        onClose={() => setIsCreateTaskVisible(false)}
+        onSave={() => fetchMoodlog()}
       />
     </SafeAreaView>
   );

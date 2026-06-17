@@ -37,10 +37,6 @@ const BrainDumpModal: React.FC<BrainDumpModalProps> = ({ isVisible, onClose, onS
     setDisplayText(displayTextRef.current);
   }, []);
 
-  console.log(displayText,"DISPLAY TEXT");
-
-
-
   // ─── Stop helper ────────────────────────────────────────────────────────────
   const stopRecording = useCallback(() => {
     wantsToRecord.current = false;
@@ -234,6 +230,7 @@ const BrainDumpModal: React.FC<BrainDumpModalProps> = ({ isVisible, onClose, onS
       setIsSaving(false);
     }
   }, [displayText, onSave, handleClose]);
+
 
   return (
     <Modal visible={isVisible} animationType="slide" transparent onRequestClose={handleClose}>
