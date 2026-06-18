@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import DashboardScreen from '../screens/Dashboard/DashboardScreen';
 import ProfileScreen from '../screens/Profile/ProfileScreen';
+import SubscriptionGhostbusterScreen from '../screens/Ghostbuster/SubscriptionGhostbusterScreen';
 import { useTheme } from '../theme/ThemeContext';
 import { BottomNavigation } from '../components/BottomNavigation';
 
@@ -21,6 +22,10 @@ const MainStack: React.FC = () => {
       <Tab.Screen
         name="Dashboard"
         component={DashboardScreen}
+      />
+      <Tab.Screen
+        name="Ghostbuster"
+        component={SubscriptionGhostbusterScreen}
       />
       <Tab.Screen
         name="Profile"
