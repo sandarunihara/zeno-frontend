@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AlertTriangle, ChevronDown, ChevronRight, Circle, Clock, ArrowLeft, Plus } from 'lucide-react-native';
+import { AlertTriangle, ChevronDown, ChevronRight, Clock, ArrowLeft, Plus, Flag } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { dashboardApi, Task } from '../../api/dashboardApi';
 import { useNavigation } from '@react-navigation/native';
@@ -71,47 +71,44 @@ const AllTasksScreen: React.FC = () => {
   const formatDeadline = (deadline?: string | null) => {
     if (!deadline) return null;
     const d = new Date(deadline);
-    return `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const isTomorrow = d.toDateString() === tomorrow.toDateString();
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    if (isToday) return `Today, ${time}`;
+    if (isTomorrow) return `Tomorrow, ${time}`;
+    return `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}, ${time}`;
   };
 
   const renderCheck = (checked: boolean) => (
     <View
       className={[
-        'h-[22px] w-[22px] items-center justify-center rounded-full border-[1.6px]',
-        checked ? 'border-[#5E5CE6] bg-[#5E5CE6]' : 'border-zinc-300 dark:border-zinc-700',
+        'h-[22px] w-[22px] items-center justify-center rounded-full border-[1.8px]',
+        checked
+          ? 'border-[#34C759] bg-[#34C759]'
+          : 'border-zinc-300 dark:border-zinc-600',
       ].join(' ')}
     >
-      {checked ? <Text className="text-[11px] font-bold text-white leading-[13px]">✓</Text> : null}
+      {checked ? (
+        <Text className="text-[11px] font-bold text-white leading-[13px]">✓</Text>
+      ) : null}
     </View>
   );
 
-  const renderDeadlineBadge = (deadline?: string | null) => {
-    const label = formatDeadline(deadline);
-    if (!label) return null;
-    const urgent = isUrgent(deadline);
-
-    return (
-      <View className={['mt-1.5 flex-row items-center gap-1 self-start rounded-full px-2.5 py-1', urgent ? 'bg-red-50 dark:bg-red-950/30' : 'bg-zinc-100 dark:bg-zinc-800/60'].join(' ')}>
-        {urgent ? <AlertTriangle size={11} color={isDark ? '#FCA5A5' : '#EF4444'} strokeWidth={2.2} /> : <Clock size={11} color={isDark ? '#A1A1AA' : '#71717A'} strokeWidth={2.2} />}
-        <Text className={['text-[11px] font-semibold', urgent ? 'text-red-600 dark:text-red-300' : 'text-zinc-500 dark:text-zinc-400'].join(' ')}>
-          {label}
-        </Text>
-      </View>
-    );
-  };
-
   const renderEffortBadge = (effort: string) => {
-    const colors: Record<string, { bg: string; text: string }> = {
-      Low: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-600 dark:text-emerald-300' },
-      Medium: { bg: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-600 dark:text-amber-300' },
-      High: { bg: 'bg-red-50 dark:bg-red-950/30', text: 'text-red-600 dark:text-red-300' },
+    const config: Record<string, { color: string; emoji: string }> = {
+      Low: { color: 'text-green-600 dark:text-green-400', emoji: '🍃' },
+      Medium: { color: 'text-orange-600 dark:text-orange-400', emoji: '⚡' },
+      High: { color: 'text-red-600 dark:text-red-400', emoji: '🔥' },
     };
-    const c = colors[effort] ?? colors.Medium;
-
+    const c = config[effort] ?? config.Medium;
     return (
-      <View className={`rounded-full px-2 py-0.5 ${c.bg}`}>
-        <Text className={`text-[10px] font-bold uppercase tracking-wide ${c.text}`}>{effort}</Text>
-      </View>
+      <Text className={`text-[11px] font-semibold ${c.color}`}>
+        {c.emoji} {effort}
+      </Text>
     );
   };
 
@@ -119,66 +116,121 @@ const AllTasksScreen: React.FC = () => {
     const hasMicro = task.microSteps && task.microSteps.length > 0;
     const checked = !!checkedTasks[task.id];
     const expanded = !!expandedTasks[task.id];
+    const deadline = formatDeadline(task.deadline);
+    const urgent = isUrgent(task.deadline);
+    const isCompleted = task.status === 'COMPLETED';
 
     return (
       <View
         key={task.id}
-        className="mb-3 rounded-2xl border border-zinc-100 bg-white px-4 py-3.5 dark:border-zinc-900 dark:bg-black"
-        style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1 }}
+        className="mb-3 rounded-3xl bg-white dark:bg-black border border-zinc-100 dark:border-zinc-800 overflow-hidden"
       >
         <Pressable
-          className="flex-row items-start gap-3 flex-1"
+          className="flex-row items-center px-4 py-3.5"
           onPress={() => navigation.navigate('TaskDetail', { taskId: task.id })}
+          android_ripple={{ color: isDark ? '#2C2C2E' : '#F2F2F7' }}
         >
-          <View className="pt-0.5">
-            <Pressable hitSlop={8} onPress={(e) => { e.stopPropagation(); if (hasMicro) toggleParentChecked(task); else toggleTaskChecked(task.id); }}>
-              {renderCheck(checked)}
-            </Pressable>
-          </View>
-          <View className="flex-1">
+          {/* Checkbox */}
+          <Pressable
+            hitSlop={10}
+            onPress={(e) => {
+              e.stopPropagation();
+              if (hasMicro) toggleParentChecked(task);
+              else toggleTaskChecked(task.id);
+            }}
+            className="mr-3"
+          >
+            {renderCheck(checked || isCompleted)}
+          </Pressable>
+
+          {/* Content */}
+          <View className="flex-1 mr-2">
             <View className="flex-row items-center gap-2">
-              <Text className={['flex-1 text-base font-semibold', checked ? 'text-zinc-400 line-through dark:text-zinc-600' : 'text-zinc-900 dark:text-white'].join(' ')}>
+              <Text
+                className={[
+                  'flex-1 text-[16px] font-medium',
+                  (checked || isCompleted)
+                    ? 'text-zinc-400 line-through dark:text-zinc-600'
+                    : 'text-black dark:text-white',
+                ].join(' ')}
+                numberOfLines={2}
+              >
                 {task.title}
               </Text>
               {task.is_critical && (
-                <View className="rounded-full bg-red-500/10 px-2 py-0.5">
-                  <Text className="text-[10px] font-bold text-red-500">!</Text>
+                <Flag size={13} color="#FF3B30" fill="#FF3B30" />
+              )}
+            </View>
+
+            {/* Meta row */}
+            <View className="flex-row items-center gap-3 mt-1.5">
+              {renderEffortBadge(task.effort_level)}
+              {deadline && (
+                <View className="flex-row items-center gap-1">
+                  {urgent ? (
+                    <AlertTriangle size={10} color="#FF3B30" strokeWidth={2.4} />
+                  ) : (
+                    <Clock size={10} color={isDark ? '#8E8E93' : '#8E8E93'} strokeWidth={2.4} />
+                  )}
+                  <Text className={`text-[11px] font-medium ${urgent ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
+                    {deadline}
+                  </Text>
                 </View>
               )}
             </View>
-            <View className="flex-row items-center gap-2 flex-wrap">
-              {renderDeadlineBadge(task.deadline)}
-              <View className="mt-1.5">{renderEffortBadge(task.effort_level)}</View>
-            </View>
           </View>
+
+          {/* Expand chevron */}
+          {hasMicro && (
+            <Pressable
+              onPress={(e) => { e.stopPropagation(); toggleExpanded(task.id); }}
+              hitSlop={10}
+              className="p-1"
+            >
+              {expanded
+                ? <ChevronDown size={16} color={isDark ? '#636366' : '#C7C7CC'} strokeWidth={2.2} />
+                : <ChevronRight size={16} color={isDark ? '#636366' : '#C7C7CC'} strokeWidth={2.2} />
+              }
+            </Pressable>
+          )}
         </Pressable>
-        {hasMicro ? (
-          <Pressable 
-            className="absolute right-4 top-4 p-2 -m-2 rounded-full" 
-            onPress={() => toggleExpanded(task.id)}
-            hitSlop={8}
-          >
-            {expanded ? <ChevronDown size={18} color={isDark ? '#71717A' : '#94A3B8'} strokeWidth={2} /> : <ChevronRight size={18} color={isDark ? '#71717A' : '#94A3B8'} strokeWidth={2} />}
-          </Pressable>
-        ) : null}
+
+        {/* Micro-steps */}
         {hasMicro && expanded && task.microSteps ? (
-          <View className="mt-3 ml-[14px] gap-2.5 border-l border-zinc-100 pl-3 dark:border-zinc-800">
-            {task.microSteps.map((step) => {
+          <View className="border-t border-zinc-100 dark:border-zinc-800">
+            {task.microSteps.map((step, index) => {
               const stepChecked = !!checkedTasks[step.id];
+              const isLast = index === task.microSteps!.length - 1;
               return (
                 <Pressable
                   key={step.id}
-                  className="flex-row items-start gap-3"
+                  className={`flex-row items-center pl-[52px] pr-4 py-2.5 ${!isLast ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}`}
                   onPress={() => navigation.navigate('TaskDetail', { taskId: step.id })}
+                  android_ripple={{ color: isDark ? '#2C2C2E' : '#F2F2F7' }}
                 >
-                  <View className="pt-0.5">
-                    <Pressable hitSlop={8} onPress={(e) => { e.stopPropagation(); toggleMicroStep(task, step.id); }}>
-                      {renderCheck(stepChecked)}
-                    </Pressable>
-                  </View>
+                  <Pressable
+                    hitSlop={8}
+                    onPress={(e) => { e.stopPropagation(); toggleMicroStep(task, step.id); }}
+                    className="mr-3"
+                  >
+                    {renderCheck(stepChecked)}
+                  </Pressable>
                   <View className="flex-1">
-                    <Text className={['text-sm font-medium', stepChecked ? 'text-zinc-400 line-through dark:text-zinc-600' : 'text-zinc-600 dark:text-zinc-300'].join(' ')}>{step.title}</Text>
-                    {renderDeadlineBadge(step.deadline)}
+                    <Text
+                      className={[
+                        'text-[14px]',
+                        stepChecked
+                          ? 'text-zinc-400 line-through dark:text-zinc-600'
+                          : 'text-zinc-700 dark:text-zinc-300',
+                      ].join(' ')}
+                    >
+                      {step.title}
+                    </Text>
+                    {step.deadline && (
+                      <Text className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+                        {formatDeadline(step.deadline)}
+                      </Text>
+                    )}
                   </View>
                 </Pressable>
               );
@@ -189,36 +241,79 @@ const AllTasksScreen: React.FC = () => {
     );
   };
 
-  const pendingCount = tasks.filter((t) => !checkedTasks[t.id]).length;
+  const pendingTasks = tasks.filter((t) => t.status !== 'COMPLETED');
+  const completedTasks = tasks.filter((t) => t.status === 'COMPLETED');
+  const pendingCount = pendingTasks.length;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['top', 'left', 'right']}>
-      <View className="flex-row items-center px-6 pt-4 pb-2">
-        <Pressable onPress={() => navigation.goBack()} className="mr-3 p-2 -ml-2 rounded-full active:bg-zinc-100 dark:active:bg-zinc-800">
-          <ArrowLeft size={24} color={theme.text} />
+    <SafeAreaView className="flex-1 bg-white dark:bg-black" edges={['top', 'left', 'right']}>
+      {/* iOS-style large title header */}
+      <View className="px-5 pt-2 pb-3 flex-row items-center">
+        <Pressable
+          onPress={() => navigation.goBack()}
+          className="mr-2 p-1.5 -ml-1.5 rounded-full active:opacity-60"
+          hitSlop={8}
+        >
+          <ArrowLeft size={24} color="#007AFF" />
         </Pressable>
-        <Text className="text-2xl font-bold text-zinc-900 dark:text-white flex-1">All Tasks</Text>
+        <View className="flex-1" />
         <Pressable 
           onPress={() => setIsCreateTaskVisible(true)}
-          className="h-8 w-8 items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-950/40"
+          className="h-9 w-9 items-center justify-center rounded-full bg-[#007AFF] active:opacity-80"
+          style={{
+            shadowColor: '#007AFF',
+            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.3,
+            shadowRadius: 6,
+            elevation: 4,
+          }}
         >
-          <Plus size={16} color="#5E5CE6" strokeWidth={2.5} />
+          <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
         </Pressable>
       </View>
-      <ScrollView className="flex-1 px-6 pt-2 pb-10" showsVerticalScrollIndicator={false}>
-        <View className="mb-4">
-          <Text className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            {loading ? 'Loading tasks...' : `${pendingCount} ${pendingCount === 1 ? 'task' : 'tasks'} pending`}
-          </Text>
-        </View>
+
+      <ScrollView 
+        className="flex-1" 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+      >
+        {/* Large Title */}
+        <Text className="text-4xl font-bold tracking-tight text-black dark:text-white mb-1">
+          All Tasks
+        </Text>
+        <Text className="text-[15px] text-zinc-400 dark:text-zinc-500 mb-5">
+          {loading ? 'Loading...' : `${pendingCount} ${pendingCount === 1 ? 'task' : 'tasks'} remaining`}
+        </Text>
+
         {loading ? (
-          <ActivityIndicator size="large" color="#5E5CE6" style={{ marginTop: 40 }} />
+          <View className="items-center py-16">
+            <ActivityIndicator size="large" color="#007AFF" />
+          </View>
         ) : tasks.length === 0 ? (
-          <View className="items-center py-10">
-            <Text className="text-zinc-500 dark:text-zinc-400">No tasks found.</Text>
+          <View className="items-center py-16 rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800">
+            <Text className="text-4xl mb-3">🎉</Text>
+            <Text className="text-[17px] font-semibold text-black dark:text-white">No Tasks Yet</Text>
+            <Text className="text-[14px] text-zinc-400 dark:text-zinc-500 mt-1">Tap + to create your first task</Text>
           </View>
         ) : (
-          tasks.map(renderTaskCard)
+          <>
+            {/* Pending Tasks */}
+            {pendingTasks.length > 0 && (
+              <View className="mb-6">
+                {pendingTasks.map(renderTaskCard)}
+              </View>
+            )}
+
+            {/* Completed Tasks */}
+            {completedTasks.length > 0 && (
+              <View>
+                <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2 ml-1">
+                  Completed
+                </Text>
+                {completedTasks.map(renderTaskCard)}
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
       <CreateTaskModal

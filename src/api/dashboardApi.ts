@@ -109,11 +109,23 @@ export const dashboardApi = {
 
     updateTask: async (id: number, request: ManualTaskRequest): Promise<TaskResponce> => {
         const response = await axiosClient.post<TaskResponce>(`/api/core/tasks/updatetask/${id}`, request);
+        console.log(response.data);
+        
+        return response.data;
+    },
+
+    completeTask: async (id: number): Promise<TaskResponce> => {
+        const response = await axiosClient.post<TaskResponce>(`/api/core/tasks/completetask/${id}`);
         return response.data;
     },
 
     createManualTask: async (request: ManualTaskRequest): Promise<TaskResponce> => {
         const response = await axiosClient.post<TaskResponce>('/api/core/tasks/manual', request);
+        return response.data;
+    },
+
+    deleteTask: async (id: number): Promise<TaskResponce> => {
+        const response = await axiosClient.get<TaskResponce>(`/api/core/tasks/deletetask/${id}`);
         return response.data;
     }
 };

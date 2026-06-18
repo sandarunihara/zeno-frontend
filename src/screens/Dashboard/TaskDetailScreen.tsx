@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View, Pressable, TextInput, Switch } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View, Pressable, TextInput, Switch, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { ArrowLeft, Clock, AlertTriangle, CheckCircle2, Edit3, Save, X } from 'lucide-react-native';
+import { ArrowLeft, Clock, AlertTriangle, CheckCircle2, Edit3, Save, X, Flag, ChevronRight, Trash2 } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { dashboardApi, Task, TaskDetailResponse, ManualTaskRequest } from '../../api/dashboardApi';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -10,7 +10,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 const TaskDetailScreen: React.FC = () => {
   const { theme, isDark } = useTheme();
   const route = useRoute<any>();
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { taskId } = route.params;
 
   const [loading, setLoading] = useState(true);
@@ -31,6 +31,27 @@ const TaskDetailScreen: React.FC = () => {
     isCritical: false,
     status: 'PENDING'
   });
+
+  type AlertConfig = {
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmText: string;
+    cancelText: string;
+    isDestructive?: boolean;
+    onConfirm: () => void;
+  };
+
+  const [customAlert, setCustomAlert] = useState<AlertConfig>({
+    visible: false,
+    title: '',
+    message: '',
+    confirmText: '',
+    cancelText: 'Cancel',
+    onConfirm: () => {}
+  });
+
+  const closeAlert = () => setCustomAlert(prev => ({ ...prev, visible: false }));
 
   const fetchDetail = async () => {
     try {
@@ -83,6 +104,18 @@ const TaskDetailScreen: React.FC = () => {
     fetchDetail();
   }, [taskId]);
 
+  const handleSaveWithConfirmation = () => {
+    setCustomAlert({
+      visible: true,
+      title: 'Save Changes',
+      message: 'Are you sure you want to save these changes?',
+      confirmText: 'Save',
+      cancelText: 'Cancel',
+      isDestructive: false,
+      onConfirm: handleSave,
+    });
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
@@ -99,11 +132,72 @@ const TaskDetailScreen: React.FC = () => {
         payload.deadline = null;
       }
       
-      await dashboardApi.updateTask(taskId, payload);
-      setIsEditing(false);
-      await fetchDetail(); // Refresh data
+      const response = await dashboardApi.updateTask(taskId, payload);
+      if (response.success) {
+        setIsEditing(false);
+        await fetchDetail();
+      } else {
+        console.error("Failed to update task:", response.message);
+        Alert.alert("Error", `Failed to update task: ${response.message}`);
+      }
     } catch (error) {
       console.error("Failed to update task", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleQuickCompleteWithConfirmation = () => {
+    setCustomAlert({
+      visible: true,
+      title: 'Complete Task',
+      message: 'Are you sure you want to mark this task as done?',
+      confirmText: 'Complete',
+      cancelText: 'Cancel',
+      isDestructive: false,
+      onConfirm: handleQuickComplete,
+    });
+  };
+
+  const handleQuickComplete = async () => {
+    try {
+      setSaving(true);
+      const response = await dashboardApi.completeTask(taskId);
+      if (response.success) {
+        await fetchDetail();
+      } else {
+        Alert.alert("Error", `Failed to complete task: ${response.message}`);
+      }
+    } catch (error) {
+      console.error("Failed to complete task", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteWithConfirmation = () => {
+    setCustomAlert({
+      visible: true,
+      title: 'Delete Task',
+      message: 'Are you sure you want to delete this task? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      isDestructive: true,
+      onConfirm: handleDelete,
+    });
+  };
+
+  const handleDelete = async () => {
+    try {
+      setSaving(true);
+      const response = await dashboardApi.deleteTask(taskId);
+      if (response.success) {
+        navigation.goBack();
+      } else {
+        Alert.alert("Error", `Failed to delete task: ${response.message}`);
+      }
+    } catch (error) {
+      console.error("Failed to delete task", error);
     } finally {
       setSaving(false);
     }
@@ -118,48 +212,62 @@ const TaskDetailScreen: React.FC = () => {
   const formatDeadline = (deadline?: string | null) => {
     if (!deadline) return 'No Deadline';
     const d = new Date(deadline);
-    if (isNaN(d.getTime())) return deadline; // return raw if invalid date
-    return `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    if (isNaN(d.getTime())) return deadline;
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const isTomorrow = d.toDateString() === tomorrow.toDateString();
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    if (isToday) return `Today at ${time}`;
+    if (isTomorrow) return `Tomorrow at ${time}`;
+    return `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()} at ${time}`;
   };
 
-  const renderEffortBadge = (effort: string) => {
-    const colors: Record<string, { bg: string; text: string }> = {
-      Low: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-600 dark:text-emerald-300' },
-      Medium: { bg: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-600 dark:text-amber-300' },
-      High: { bg: 'bg-red-50 dark:bg-red-950/30', text: 'text-red-600 dark:text-red-300' },
-    };
-    const c = colors[effort] ?? colors.Medium;
-
-    return (
-      <View className={`rounded-full px-3 py-1 ${c.bg}`}>
-        <Text className={`text-xs font-bold uppercase tracking-wide ${c.text}`}>{effort} Effort</Text>
-      </View>
-    );
+  const formatDisplayDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   };
 
+  const effortConfig: Record<string, { emoji: string; color: string; label: string }> = {
+    Low: { emoji: '🍃', color: '#34C759', label: 'Low Effort' },
+    Medium: { emoji: '⚡', color: '#FF9500', label: 'Medium Effort' },
+    High: { emoji: '🔥', color: '#FF3B30', label: 'High Effort' },
+  };
+
+  // ─── Loading State ─────────────────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
-        <View className="flex-row items-center px-6 pt-4 pb-2">
-          <Pressable onPress={() => navigation.goBack()} className="mr-3 p-2 -ml-2 rounded-full active:bg-zinc-100 dark:active:bg-zinc-800">
-            <ArrowLeft size={24} color={theme.text} />
+      <SafeAreaView className="flex-1 bg-white dark:bg-black">
+        <View className="flex-row items-center px-5 pt-2 pb-2">
+          <Pressable onPress={() => navigation.goBack()} className="p-1.5 -ml-1.5 rounded-full" hitSlop={8}>
+            <ArrowLeft size={24} color="#007AFF" />
           </Pressable>
         </View>
-        <ActivityIndicator size="large" color="#5E5CE6" style={{ marginTop: 40 }} />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#007AFF" />
+        </View>
       </SafeAreaView>
     );
   }
 
+  // ─── Not Found ─────────────────────────────────────────────────
   if (!taskDetail || !taskDetail.task) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
-        <View className="flex-row items-center px-6 pt-4 pb-2">
-          <Pressable onPress={() => navigation.goBack()} className="mr-3 p-2 -ml-2 rounded-full active:bg-zinc-100 dark:active:bg-zinc-800">
-            <ArrowLeft size={24} color={theme.text} />
+      <SafeAreaView className="flex-1 bg-white dark:bg-black">
+        <View className="flex-row items-center px-5 pt-2 pb-2">
+          <Pressable onPress={() => navigation.goBack()} className="p-1.5 -ml-1.5 rounded-full" hitSlop={8}>
+            <ArrowLeft size={24} color="#007AFF" />
           </Pressable>
         </View>
-        <View className="items-center py-10">
-          <Text className="text-zinc-500 dark:text-zinc-400">Task not found.</Text>
+        <View className="flex-1 items-center justify-center px-6">
+          <Text className="text-4xl mb-4">🔍</Text>
+          <Text className="text-[17px] font-semibold text-black dark:text-white">Task Not Found</Text>
+          <Text className="text-[14px] text-zinc-400 dark:text-zinc-500 mt-1 text-center">
+            This task may have been deleted or moved.
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -167,231 +275,395 @@ const TaskDetailScreen: React.FC = () => {
 
   const { task, microSteps, parentTask } = taskDetail;
   const urgent = isUrgent(task.deadline);
+  const isCompleted = task.status === 'COMPLETED';
+  const effort = effortConfig[task.effort_level] ?? effortConfig.Medium;
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['top', 'left', 'right']}>
-      <View className="flex-row items-center justify-between px-6 pt-4 pb-2">
-        <View className="flex-row items-center">
-          <Pressable onPress={() => {
-            if (isEditing) setIsEditing(false);
-            else navigation.goBack();
-          }} className="mr-3 p-2 -ml-2 rounded-full active:bg-zinc-100 dark:active:bg-zinc-800">
-            {isEditing ? <X size={24} color={theme.text} /> : <ArrowLeft size={24} color={theme.text} />}
-          </Pressable>
-          <Text className="text-xl font-bold text-zinc-900 dark:text-white" numberOfLines={1}>
-            {isEditing ? 'Edit Task' : 'Task Detail'}
-          </Text>
-        </View>
-        <Pressable 
-          onPress={isEditing ? handleSave : () => setIsEditing(true)}
-          disabled={saving}
-          className={`flex-row items-center gap-2 rounded-full px-4 py-2 ${isEditing ? 'bg-[#5E5CE6]' : 'bg-zinc-100 dark:bg-zinc-800'} active:opacity-70`}
+  const renderCustomAlert = () => (
+    <Modal
+      transparent
+      visible={customAlert.visible}
+      animationType="fade"
+      onRequestClose={closeAlert}
+    >
+      <View className="flex-1 items-center justify-center bg-black/40 px-12">
+        <View className="w-full rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 overflow-hidden"
         >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : isEditing ? (
-            <>
-              <Save size={16} color="#FFF" />
-              <Text className="font-bold text-white text-sm">Save</Text>
-            </>
-          ) : (
-            <>
-              <Edit3 size={16} color={isDark ? '#A1A1AA' : '#52525B'} />
-              <Text className="font-bold text-zinc-600 dark:text-zinc-300 text-sm">Edit</Text>
-            </>
-          )}
-        </Pressable>
-      </View>
-      
-      <ScrollView className="flex-1 px-6 pt-6 pb-10" showsVerticalScrollIndicator={false}>
-        {!isEditing && parentTask && (
-          <View className="mb-4 self-start rounded-md bg-zinc-100 px-3 py-1.5 dark:bg-zinc-800">
-            <Text className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-              Part of: {parentTask.title}
+          <View className="px-4 pt-5 pb-4 items-center">
+            <Text className="text-[17px] font-semibold text-black dark:text-white text-center">
+              {customAlert.title}
+            </Text>
+            <Text className="mt-1 text-[13px] leading-4 text-black dark:text-white text-center">
+              {customAlert.message}
             </Text>
           </View>
-        )}
 
-        {isEditing ? (
-          <View className="mb-6 space-y-4 gap-4">
-            <View>
-              <Text className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-1">TITLE</Text>
+          <View className="flex-row border-t border-zinc-200 dark:border-zinc-800">
+            <Pressable
+              onPress={closeAlert}
+              className="flex-1 py-3 items-center border-r border-zinc-200 dark:border-zinc-800 active:bg-zinc-50 dark:active:bg-zinc-900"
+            >
+              <Text className="text-[17px] text-[#007AFF] font-normal">{customAlert.cancelText}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                closeAlert();
+                customAlert.onConfirm();
+              }}
+              className="flex-1 py-3 items-center active:bg-zinc-50 dark:active:bg-zinc-900"
+            >
+              <Text className={['text-[17px] font-semibold', customAlert.isDestructive ? 'text-[#FF3B30]' : 'text-[#007AFF]'].join(' ')}>
+                {customAlert.confirmText}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  // ─── EDIT MODE ─────────────────────────────────────────────────
+  if (isEditing) {
+    return (
+      <SafeAreaView className="flex-1 bg-white dark:bg-black" edges={['top', 'left', 'right']}>
+        {/* Header */}
+        <View className="flex-row items-center justify-between px-5 pt-2 pb-3">
+          <Pressable onPress={() => setIsEditing(false)} hitSlop={12}>
+            <Text className="text-[17px] text-[#007AFF]">Cancel</Text>
+          </Pressable>
+          <Text className="text-[17px] font-semibold text-black dark:text-white">Edit Task</Text>
+          <Pressable onPress={handleSaveWithConfirmation} disabled={saving} hitSlop={12}>
+            {saving ? (
+              <ActivityIndicator size="small" color="#007AFF" />
+            ) : (
+              <Text className="text-[17px] font-semibold text-[#007AFF]">Save</Text>
+            )}
+          </Pressable>
+        </View>
+        <View className="h-[0.5px] bg-zinc-200 dark:bg-zinc-800" />
+
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+          
+          {/* Title & Description */}
+          <View className="mx-5 mt-5">
+            <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+            >
               <TextInput
                 value={editForm.title}
                 onChangeText={(t) => setEditForm({ ...editForm, title: t })}
-                className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-base text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white"
-                placeholder="Task Title"
-                placeholderTextColor={isDark ? '#71717A' : '#A1A1AA'}
+                placeholder="Title"
+                placeholderTextColor={isDark ? '#636366' : '#C7C7CC'}
+                className="px-4 pt-3.5 pb-3 text-[17px] text-black dark:text-white font-medium"
               />
-            </View>
-
-            <View>
-              <Text className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-1">DESCRIPTION</Text>
+              <View className="h-[0.5px] mx-4 bg-zinc-100 dark:bg-zinc-700" />
               <TextInput
                 value={editForm.description}
                 onChangeText={(t) => setEditForm({ ...editForm, description: t })}
+                placeholder="Notes"
                 multiline
-                numberOfLines={3}
+                numberOfLines={4}
                 textAlignVertical="top"
-                className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-base text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white min-h-[80px]"
-                placeholder="Description"
-                placeholderTextColor={isDark ? '#71717A' : '#A1A1AA'}
+                placeholderTextColor={isDark ? '#636366' : '#C7C7CC'}
+                className="px-4 pt-3 pb-4 text-[15px] text-zinc-700 dark:text-zinc-300 min-h-[100px]"
               />
             </View>
+          </View>
 
-            <View>
-              <Text className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-1">DEADLINE</Text>
-              <View className="flex-row gap-3">
-                <Pressable
-                  onPress={() => setShowDatePicker(true)}
-                  className="flex-1 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900 justify-center"
-                >
-                  <Text className={editDate ? "text-base text-zinc-900 dark:text-white" : "text-base text-zinc-400 dark:text-zinc-600"}>
-                    {editDate || "YYYY-MM-DD"}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setShowTimePicker(true)}
-                  className="flex-1 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900 justify-center"
-                >
-                  <Text className={editTime ? "text-base text-zinc-900 dark:text-white" : "text-base text-zinc-400 dark:text-zinc-600"}>
-                    {editTime || "HH:MM"}
-                  </Text>
-                </Pressable>
-              </View>
-
-              {showDatePicker && (
-                <DateTimePicker
-                  value={dateObj}
-                  mode="date"
-                  display="default"
-                  onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
-                    setShowDatePicker(false);
-                    if (selectedDate) {
-                      setDateObj(selectedDate);
-                      setEditDate(selectedDate.toISOString().split('T')[0]);
-                    }
-                  }}
-                />
-              )}
-
-              {showTimePicker && (
-                <DateTimePicker
-                  value={dateObj}
-                  mode="time"
-                  display="default"
-                  onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
-                    setShowTimePicker(false);
-                    if (selectedDate) {
-                      setDateObj(selectedDate);
-                      setEditTime(selectedDate.toISOString().split('T')[1].substring(0, 5));
-                    }
-                  }}
-                />
-              )}
+          {/* Deadline */}
+          <View className="mx-5 mt-6">
+            <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2 ml-1">
+              Deadline
+            </Text>
+            <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+            >
+              <Pressable
+                onPress={() => setShowDatePicker(true)}
+                className="flex-row items-center px-4 py-3.5"
+              >
+                <Text className="flex-1 text-[16px] text-black dark:text-white">Date</Text>
+                <Text className={`text-[16px] ${editDate ? 'text-[#007AFF]' : 'text-zinc-300 dark:text-zinc-600'}`}>
+                  {editDate ? formatDisplayDate(editDate) : 'None'}
+                </Text>
+              </Pressable>
+              <View className="h-[0.5px] ml-4 bg-zinc-100 dark:bg-zinc-700" />
+              <Pressable
+                onPress={() => setShowTimePicker(true)}
+                className="flex-row items-center px-4 py-3.5"
+              >
+                <Text className="flex-1 text-[16px] text-black dark:text-white">Time</Text>
+                <Text className={`text-[16px] ${editTime ? 'text-[#007AFF]' : 'text-zinc-300 dark:text-zinc-600'}`}>
+                  {editTime || 'None'}
+                </Text>
+              </Pressable>
             </View>
 
-            <View>
-              <Text className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mb-1.5">EFFORT LEVEL</Text>
-              <View className="flex-row gap-2">
-                {['Low', 'Medium', 'High'].map(level => (
+            {showDatePicker && (
+              <DateTimePicker
+                value={dateObj}
+                mode="date"
+                display="default"
+                onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
+                  setShowDatePicker(false);
+                  if (selectedDate) {
+                    setDateObj(selectedDate);
+                    setEditDate(selectedDate.toISOString().split('T')[0]);
+                  }
+                }}
+              />
+            )}
+            {showTimePicker && (
+              <DateTimePicker
+                value={dateObj}
+                mode="time"
+                display="default"
+                onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
+                  setShowTimePicker(false);
+                  if (selectedDate) {
+                    setDateObj(selectedDate);
+                    setEditTime(selectedDate.toISOString().split('T')[1].substring(0, 5));
+                  }
+                }}
+              />
+            )}
+          </View>
+
+          {/* Effort Level */}
+          <View className="mx-5 mt-6">
+            <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2 ml-1">
+              Effort Level
+            </Text>
+            <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 p-1.5 flex-row gap-1.5"
+            >
+              {(['Low', 'Medium', 'High'] as const).map(level => {
+                const config = effortConfig[level];
+                const selected = editForm.effortLevel === level;
+                return (
                   <Pressable
                     key={level}
                     onPress={() => setEditForm({ ...editForm, effortLevel: level })}
-                    className={`flex-1 items-center justify-center rounded-lg py-2 border ${editForm.effortLevel === level ? 'border-[#5E5CE6] bg-[#5E5CE6]/10' : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900'}`}
+                    className={[
+                      'flex-1 items-center rounded-lg py-2.5',
+                      selected ? 'bg-zinc-100 dark:bg-zinc-800' : '',
+                    ].join(' ')}
                   >
-                    <Text className={`text-sm font-semibold ${editForm.effortLevel === level ? 'text-[#5E5CE6]' : 'text-zinc-500 dark:text-zinc-400'}`}>{level}</Text>
+                    <Text className="text-base mb-0.5">{config.emoji}</Text>
+                    <Text className={`text-[13px] font-semibold ${selected ? 'text-zinc-800 dark:text-zinc-100' : 'text-zinc-400 dark:text-zinc-500'}`}>
+                      {level}
+                    </Text>
                   </Pressable>
-                ))}
-              </View>
+                );
+              })}
             </View>
+          </View>
 
-            <View className="flex-row items-center justify-between mt-2 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <View>
-                <Text className="text-sm font-bold text-zinc-900 dark:text-white">Critical Task</Text>
-                <Text className="text-xs text-zinc-500 dark:text-zinc-400">Mark as high priority / critical</Text>
+          {/* Critical Toggle */}
+          <View className="mx-5 mt-6">
+            <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 px-4 py-3.5 flex-row items-center"
+            >
+              <View className="h-8 w-8 items-center justify-center rounded-lg bg-red-500/10 mr-3">
+                <Flag size={16} color="#FF3B30" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-[16px] font-medium text-black dark:text-white">Critical Priority</Text>
               </View>
               <Switch
                 value={editForm.isCritical}
                 onValueChange={(v) => setEditForm({ ...editForm, isCritical: v })}
-                trackColor={{ false: isDark ? '#3F3F46' : '#E4E4E7', true: '#5E5CE6' }}
+                trackColor={{ false: isDark ? '#39393D' : '#E9E9EB', true: '#FF3B30' }}
+                thumbColor="#FFFFFF"
               />
             </View>
-
-            <View className="flex-row items-center justify-between mt-2 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <View>
-                <Text className="text-sm font-bold text-zinc-900 dark:text-white">Status</Text>
-                <Text className="text-xs text-zinc-500 dark:text-zinc-400">Current progress state</Text>
-              </View>
-              <Pressable
-                onPress={() => setEditForm({ ...editForm, status: editForm.status === 'PENDING' ? 'COMPLETED' : 'PENDING' })}
-                className={`px-3 py-1.5 rounded-full ${editForm.status === 'COMPLETED' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}
-              >
-                <Text className={`text-xs font-bold ${editForm.status === 'COMPLETED' ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
-                  {editForm.status}
-                </Text>
-              </Pressable>
-            </View>
           </View>
-        ) : (
-          <>
-            <View className="flex-row items-center justify-between mb-4">
-              <View className="flex-row gap-2">
-                {renderEffortBadge(task.effort_level)}
-                <View className={`rounded-full px-3 py-1 ${task.status === 'COMPLETED' ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-amber-50 dark:bg-amber-950/30'}`}>
-                  <Text className={`text-xs font-bold uppercase tracking-wide ${task.status === 'COMPLETED' ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
+
+          {/* Delete Button */}
+          <View className="mx-5 mt-8">
+            <Pressable
+              onPress={handleDeleteWithConfirmation}
+              className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 px-4 py-3.5 flex-row items-center justify-center active:bg-red-50 dark:active:bg-red-900/20"
+            >
+              <Text className="text-[17px] font-medium text-[#FF3B30]">Delete Task</Text>
+            </Pressable>
+          </View>
+
+        </ScrollView>
+        {renderCustomAlert()}
+      </SafeAreaView>
+    );
+  }
+
+  // ─── VIEW MODE ─────────────────────────────────────────────────
+  return (
+    <SafeAreaView className="flex-1 bg-white dark:bg-black" edges={['top', 'left', 'right']}>
+      {/* Header */}
+      <View className="flex-row items-center justify-between px-5 pt-2 pb-3">
+        <Pressable
+          onPress={() => navigation.goBack()}
+          className="p-1.5 -ml-1.5 rounded-full active:opacity-60"
+          hitSlop={8}
+        >
+          <ArrowLeft size={24} color="#007AFF" />
+        </Pressable>
+
+        <View className="flex-row items-center gap-3">
+          {!isCompleted && (
+            <Pressable
+              onPress={handleQuickCompleteWithConfirmation}
+              disabled={saving}
+              className="flex-row items-center gap-1.5 rounded-full bg-[#34C759]/10 px-3.5 py-2 active:opacity-70"
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#34C759" />
+              ) : (
+                <>
+                  <CheckCircle2 size={15} color="#34C759" strokeWidth={2.2} />
+                  <Text className="text-[14px] font-semibold text-[#34C759]">Done</Text>
+                </>
+              )}
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() => setIsEditing(true)}
+            className="p-2 rounded-full active:opacity-60"
+            hitSlop={8}
+          >
+            <Edit3 size={20} color="#007AFF" />
+          </Pressable>
+          <Pressable
+            onPress={handleDeleteWithConfirmation}
+            className="p-2 rounded-full active:opacity-60"
+            hitSlop={8}
+          >
+            <Trash2 size={20} color="#FF3B30" />
+          </Pressable>
+        </View>
+      </View>
+
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        
+        {/* Parent breadcrumb */}
+        {parentTask && (
+          <Pressable
+            onPress={() => navigation.navigate('TaskDetail', { taskId: parentTask.id })}
+            className="mx-5 mb-3 flex-row items-center self-start"
+          >
+            <Text className="text-[13px] font-medium text-[#007AFF]">
+              ← {parentTask.title}
+            </Text>
+          </Pressable>
+        )}
+
+        {/* Hero Card */}
+        <View className="mx-5 rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+        >
+          {/* Status Banner */}
+          {isCompleted && (
+            <View className="bg-[#34C759]/10 px-5 py-2.5 flex-row items-center gap-2">
+              <CheckCircle2 size={15} color="#34C759" />
+              <Text className="text-[13px] font-semibold text-[#34C759]">Completed</Text>
+            </View>
+          )}
+
+          <View className="px-5 pt-5 pb-5">
+            {/* Badges Row */}
+            <View className="flex-row items-center gap-2 mb-3 flex-wrap">
+              {/* Effort */}
+              <View className="flex-row items-center gap-1 rounded-full border border-zinc-200 dark:border-zinc-800 px-2.5 py-1">
+                <Text className="text-[12px]">{effort.emoji}</Text>
+                <Text className="text-[12px] font-semibold text-zinc-600 dark:text-zinc-400">{effort.label}</Text>
+              </View>
+
+              {/* Status if not completed */}
+              {!isCompleted && (
+                <View className="rounded-full bg-orange-50 dark:bg-orange-950/20 px-2.5 py-1">
+                  <Text className="text-[12px] font-semibold text-orange-600 dark:text-orange-400">
                     {task.status}
                   </Text>
                 </View>
-              </View>
+              )}
+
+              {/* Critical */}
               {task.is_critical && (
-                <View className="flex-row items-center gap-1 rounded-full bg-red-500/10 px-3 py-1">
-                  <AlertTriangle size={14} color="#EF4444" />
-                  <Text className="text-xs font-bold text-red-500">Critical</Text>
+                <View className="flex-row items-center gap-1 rounded-full bg-red-50 dark:bg-red-950/20 px-2.5 py-1">
+                  <Flag size={10} color="#FF3B30" fill="#FF3B30" />
+                  <Text className="text-[12px] font-semibold text-red-600 dark:text-red-400">Critical</Text>
                 </View>
               )}
             </View>
 
-            <Text className="text-2xl font-bold text-zinc-900 dark:text-white mb-2 leading-8">
+            {/* Title */}
+            <Text className={`text-[24px] font-bold leading-8 mb-3 ${isCompleted ? 'text-zinc-400 dark:text-zinc-600' : 'text-black dark:text-white'}`}>
               {task.title}
             </Text>
 
-            <View className="flex-row items-center gap-2 mb-6">
-              {urgent ? <AlertTriangle size={14} color={isDark ? '#FCA5A5' : '#EF4444'} /> : <Clock size={14} color={isDark ? '#A1A1AA' : '#71717A'} />}
-              <Text className={['text-sm font-medium', urgent ? 'text-red-600 dark:text-red-300' : 'text-zinc-500 dark:text-zinc-400'].join(' ')}>
+            {/* Deadline */}
+            <View className="flex-row items-center gap-2">
+              {urgent ? (
+                <AlertTriangle size={14} color="#FF3B30" strokeWidth={2.2} />
+              ) : (
+                <Clock size={14} color={isDark ? '#8E8E93' : '#8E8E93'} strokeWidth={2.2} />
+              )}
+              <Text className={`text-[14px] font-medium ${urgent ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
                 {formatDeadline(task.deadline)}
               </Text>
             </View>
+          </View>
+        </View>
 
-            {task.description && (
-              <View className="mb-8 rounded-2xl bg-zinc-50 p-4 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800">
-                <Text className="text-[15px] leading-6 text-zinc-700 dark:text-zinc-300">
-                  {task.description}
-                </Text>
-              </View>
-            )}
-
-            {!parentTask && microSteps && microSteps.length > 0 && (
-              <View className="mb-8">
-                <Text className="text-lg font-bold text-zinc-900 dark:text-white mb-4">Micro Steps</Text>
-                <View className="gap-3">
-                  {microSteps.map((step) => (
-                    <View key={step.id} className="flex-row items-start gap-3 rounded-xl border border-zinc-100 bg-white p-3.5 dark:border-zinc-800 dark:bg-black shadow-sm">
-                      <CheckCircle2 size={20} color={isDark ? '#52525B' : '#E4E4E7'} />
-                      <View className="flex-1 pt-0.5">
-                        <Text className="text-[15px] font-semibold text-zinc-800 dark:text-zinc-200 mb-1">{step.title}</Text>
-                        {step.description && (
-                          <Text className="text-xs text-zinc-500 dark:text-zinc-400 leading-4">{step.description}</Text>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-          </>
+        {/* Description */}
+        {task.description && (
+          <View className="mx-5 mt-4">
+            <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2 ml-1">
+              Notes
+            </Text>
+            <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 px-4 py-4"
+            >
+              <Text className="text-[15px] leading-6 text-zinc-700 dark:text-zinc-300">
+                {task.description}
+              </Text>
+            </View>
+          </View>
         )}
+
+        {/* Micro Steps */}
+        {!parentTask && microSteps && microSteps.length > 0 && (
+          <View className="mx-5 mt-6">
+            <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2 ml-1">
+              Micro Steps
+            </Text>
+            <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+            >
+              {microSteps.map((step, index) => {
+                const isLast = index === microSteps.length - 1;
+                const stepCompleted = step.status === 'COMPLETED';
+                return (
+                  <Pressable
+                    key={step.id}
+                    onPress={() => navigation.navigate('TaskDetail', { taskId: step.id })}
+                    className={`flex-row items-center px-4 py-3.5 ${!isLast ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}`}
+                    android_ripple={{ color: isDark ? '#2C2C2E' : '#F2F2F7' }}
+                  >
+                    <View className={`h-[22px] w-[22px] items-center justify-center rounded-full border-[1.8px] mr-3 ${stepCompleted ? 'border-[#34C759] bg-[#34C759]' : 'border-zinc-300 dark:border-zinc-600'}`}>
+                      {stepCompleted && <Text className="text-[11px] font-bold text-white leading-[13px]">✓</Text>}
+                    </View>
+                    <View className="flex-1">
+                      <Text className={`text-[15px] font-medium ${stepCompleted ? 'text-zinc-400 line-through dark:text-zinc-600' : 'text-black dark:text-white'}`}>
+                        {step.title}
+                      </Text>
+                      {step.description && (
+                        <Text className="text-[12px] text-zinc-400 dark:text-zinc-500 mt-0.5" numberOfLines={1}>
+                          {step.description}
+                        </Text>
+                      )}
+                    </View>
+                    <ChevronRight size={16} color={isDark ? '#636366' : '#C7C7CC'} strokeWidth={2} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
       </ScrollView>
+      {renderCustomAlert()}
     </SafeAreaView>
   );
 };

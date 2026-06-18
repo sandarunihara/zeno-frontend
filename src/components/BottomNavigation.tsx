@@ -1,77 +1,68 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View, Platform } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Home, User } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 
-const ACCENT = '#5E5CE6';
+const ACTIVE_COLOR = '#007AFF'; // iOS System Blue
 
-export const BottomNavigation: React.FC<BottomNavigationProps> = ({
+export const BottomNavigation: React.FC<BottomTabBarProps> = ({
   state,
   navigation,
 }) => {
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const activeRoute = state.routeNames[state.index];
+  
+  // Standard iOS tab bar height is usually ~49 points (excluding the bottom home indicator area)
+  // We add a little extra padding for comfortable tapping
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 0 : 12);
 
   return (
-    <View style={{ paddingBottom: Math.max(insets.bottom, 12), paddingHorizontal: 16, paddingTop: 8 }}>
-      <View className="h-[72px] flex-row items-center justify-evenly rounded-[22px] border border-zinc-100 bg-white dark:border-zinc-900 dark:bg-black">
-        <Pressable
-          className={[
-            'min-w-20 items-center justify-center gap-1 rounded-2xl px-4 py-2',
-            activeRoute === 'Dashboard' ? 'bg-indigo-50/80 dark:bg-indigo-950/35' : '',
-          ].join(' ')}
-          android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5' }}
-          onPress={() => navigation.navigate('Dashboard')}
-        >
-          <Home
-            size={21}
-            color={activeRoute === 'Dashboard' ? ACCENT : isDark ? '#71717A' : '#9CA3AF'}
-            strokeWidth={2}
-          />
-          <Text
-            className={[
-              'text-xs font-semibold',
-              activeRoute === 'Dashboard' ? 'text-[#5E5CE6]' : 'text-zinc-400 dark:text-zinc-500',
-            ].join(' ')}
-          >
-            Home
-          </Text>
-          {activeRoute === 'Dashboard' && (
-            <View className="h-1 w-1 rounded-full bg-[#5E5CE6]" />
-          )}
-        </Pressable>
+    <View 
+      className="flex-row border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black"
+      style={{ paddingBottom: bottomPadding, paddingTop: 6 }}
+    >
+      {state.routes.map((route, index) => {
+        const isFocused = state.index === index;
+        const Icon = route.name === 'Dashboard' ? Home : User;
+        
+        return (
+          <Pressable
+            key={route.key}
+            onPress={() => {
+              const event = navigation.emit({
+                type: 'tabPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
 
-      <Pressable
-        className={[
-          'min-w-20 items-center justify-center gap-1 rounded-2xl px-4 py-2',
-          activeRoute === 'Profile' ? 'bg-sky-50 dark:bg-sky-950/40' : '',
-        ].join(' ')}
-        android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5' }}
-        onPress={() => navigation.navigate('Profile')}
-      >
-        <User
-          size={21}
-          color={activeRoute === 'Profile' ? ACCENT : isDark ? '#71717A' : '#9CA3AF'}
-          strokeWidth={2}
-        />
-        <Text
-          className={[
-            'text-xs font-semibold',
-            activeRoute === 'Profile' ? 'text-[#5E5CE6]' : 'text-zinc-400 dark:text-zinc-500',
-          ].join(' ')}
-        >
-          {activeRoute === 'Profile' ? 'Profile' : 'Profile'}
-        </Text>
-        {activeRoute === 'Profile' && (
-          <View className="h-1 w-1 rounded-full bg-[#5E5CE6]" />
-        )}
-      </Pressable>
-      </View>
+              if (!isFocused && !event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            }}
+            className="flex-1 items-center justify-center py-1"
+            hitSlop={8}
+            android_ripple={{ color: isDark ? '#2C2C2E' : '#E5E5EA', borderless: true, radius: 40 }}
+          >
+            <View className="items-center justify-center h-8 mb-0.5">
+              <Icon
+                size={24}
+                color={isFocused ? ACTIVE_COLOR : isDark ? '#8E8E93' : '#999999'}
+                strokeWidth={isFocused ? 2.5 : 2}
+              />
+            </View>
+            <Text
+              className={[
+                'text-[10px] font-medium tracking-wide',
+                isFocused ? 'text-[#007AFF]' : 'text-[#999999] dark:text-[#8E8E93]',
+              ].join(' ')}
+            >
+              {route.name === 'Dashboard' ? 'Home' : 'Profile'}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 };
-
-type BottomNavigationProps = BottomTabBarProps;

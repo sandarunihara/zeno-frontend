@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal, View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
-import { Mic, Square, X, Brain, AlertCircle, Keyboard as KeyboardIcon } from 'lucide-react-native';
+import { Mic, Square, Brain, AlertCircle, Keyboard as KeyboardIcon } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { dashboardApi } from '../../api/dashboardApi';
@@ -236,131 +236,148 @@ const BrainDumpModal: React.FC<BrainDumpModalProps> = ({ isVisible, onClose, onS
     <Modal visible={isVisible} animationType="slide" transparent onRequestClose={handleClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1 justify-end bg-black/50"
+        className="flex-1 justify-end bg-black/40"
       >
-        <View className="h-[80%] w-full rounded-t-[32px] bg-white p-6 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
+        <Pressable className="flex-1" onPress={handleClose} />
+        <View className="h-[90%] w-full rounded-t-[32px] bg-white dark:bg-black"
+          style={{
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.15,
+            shadowRadius: 20,
+            elevation: 24,
+          }}
+        >
+          {/* Grab Handle */}
+          <View className="items-center pt-2.5 pb-2">
+            <View className="h-1.5 w-10 rounded-full bg-zinc-300 dark:bg-zinc-600" />
+          </View>
 
-          {/* Header */}
-          <View className="flex-row items-center justify-between mb-4">
-            <View className="flex-row items-center gap-3">
-              <View className="h-10 w-10 items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-950/30">
-                <Brain size={20} color="#5E5CE6" />
-              </View>
-              <View>
-                <Text className="text-xl font-bold text-zinc-900 dark:text-white">Brain Dump</Text>
-                <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {isRecording ? '🔴 Speak now...' : 'Capture your thoughts instantly'}
-                </Text>
-              </View>
+          {/* iOS Header */}
+          <View className="flex-row items-center justify-between px-4 pb-4 border-b border-zinc-200 dark:border-zinc-800">
+            <Pressable onPress={handleClose} hitSlop={10} className="w-16">
+              <Text className="text-[17px] text-[#007AFF]">Cancel</Text>
+            </Pressable>
+            <View className="flex-row items-center justify-center flex-1 gap-1.5">
+              <Brain size={16} color={isDark ? '#EBEBF5' : '#000000'} />
+              <Text className="text-[17px] font-semibold text-black dark:text-white">Brain Dump</Text>
             </View>
-            <Pressable onPress={handleClose} className="h-10 w-10 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
-              <X size={20} color={isDark ? '#A1A1AA' : '#71717A'} />
+            <Pressable 
+              onPress={handleSave} 
+              disabled={!displayText.trim() || isSaving} 
+              hitSlop={10} 
+              className="w-16 items-end"
+            >
+              {isSaving ? (
+                <ActivityIndicator color="#007AFF" size="small" />
+              ) : (
+                <Text className={['text-[17px] font-semibold', displayText.trim() ? 'text-[#007AFF]' : 'text-zinc-300 dark:text-zinc-600'].join(' ')}>
+                  Save
+                </Text>
+              )}
             </Pressable>
           </View>
 
-          {/* Debug strip — visible always so we can see what's happening */}
-          {debugLog !== '' && (
-            <View className="mb-3 rounded-lg bg-zinc-100 dark:bg-zinc-800 px-3 py-2">
-              <Text className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">{debugLog}</Text>
-            </View>
-          )}
-
-          {/* Error */}
-          {error && (
-            <View className="mb-4 flex-row items-center gap-2 rounded-xl bg-rose-50 p-3 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-900/30">
-              <AlertCircle size={16} color="#E11D48" />
-              <Text className="flex-1 text-[12px] font-medium text-rose-700 dark:text-rose-400">{error}</Text>
-            </View>
-          )}
-
-          {/* Input Area */}
-          <View className="flex-1 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 p-4 mb-6 border border-zinc-100 dark:border-zinc-800">
-            {useKeyboard ? (
-              <TextInput
-                multiline
-                placeholder="Start typing your thought..."
-                placeholderTextColor={isDark ? '#52525B' : '#A1A1AA'}
-                value={displayText}
-                onChangeText={(t) => {
-                  displayTextRef.current = t;
-                  completedSegmentsRef.current = [t];
-                  currentSegmentRef.current = '';
-                  setDisplayText(t);
-                }}
-                className="text-lg leading-7 text-zinc-800 dark:text-zinc-200 text-left align-top flex-1"
-                autoFocus
-              />
-            ) : (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {!displayText ? (
-                  <Text className="text-center text-zinc-400 dark:text-zinc-500 mt-10">
-                    {isRecording ? 'Speak clearly into the microphone...' : 'Tap the microphone and start speaking...'}
-                  </Text>
-                ) : (
-                  <Text className="text-lg leading-7 text-zinc-800 dark:text-zinc-200">
-                    {displayText}
-                  </Text>
-                )}
-              </ScrollView>
+          <View className="flex-1 px-4 pt-5">
+            {/* Debug strip */}
+            {debugLog !== '' && (
+              <View className="mb-3 rounded-lg bg-white dark:bg-black px-3 py-2 border border-zinc-200 dark:border-zinc-800">
+                <Text className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">{debugLog}</Text>
+              </View>
             )}
-          </View>
 
-          {/* Controls */}
-          <View className="items-center mb-6">
-            <View className="flex-row items-center gap-8">
-              <Pressable
-                onPress={() => { setUseKeyboard(v => !v); if (isRecording) stopRecording(); }}
-                className={['h-12 w-12 items-center justify-center rounded-full', useKeyboard ? 'bg-indigo-100 dark:bg-indigo-900/50' : 'bg-zinc-100 dark:bg-zinc-800'].join(' ')}
-              >
-                <KeyboardIcon size={20} color={useKeyboard ? '#5E5CE6' : (isDark ? '#71717A' : '#94A3B8')} />
-              </Pressable>
+            {/* Error */}
+            {error && (
+              <View className="mb-4 flex-row items-center gap-2 rounded-xl bg-red-50 p-3 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30">
+                <AlertCircle size={16} color="#FF3B30" />
+                <Text className="flex-1 text-[12px] font-medium text-red-600 dark:text-red-400">{error}</Text>
+              </View>
+            )}
 
-              <View className="items-center justify-center">
-                {isRecording && <View className="absolute h-28 w-28 rounded-full bg-rose-200/40 dark:bg-rose-950/40" />}
+            {/* Input Area (iOS Card) */}
+            <View className="flex-1 rounded-3xl bg-white dark:bg-black p-4 mb-6 border border-zinc-200 dark:border-zinc-800">
+              {useKeyboard ? (
+                <TextInput
+                  multiline
+                  placeholder="Start typing your thought..."
+                  placeholderTextColor={isDark ? '#8E8E93' : '#C7C7CC'}
+                  value={displayText}
+                  onChangeText={(t) => {
+                    displayTextRef.current = t;
+                    completedSegmentsRef.current = [t];
+                    currentSegmentRef.current = '';
+                    setDisplayText(t);
+                  }}
+                  className="text-[17px] leading-6 text-black dark:text-white text-left align-top flex-1"
+                  autoFocus
+                />
+              ) : (
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {!displayText ? (
+                    <View className="items-center justify-center py-10">
+                      <Text className="text-center text-[17px] text-zinc-400 dark:text-zinc-500">
+                        {isRecording ? 'Listening...\nSpeak your mind clearly.' : 'Tap the microphone below\nand start speaking.'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text className="text-[17px] leading-6 text-black dark:text-white">
+                      {displayText}
+                    </Text>
+                  )}
+                </ScrollView>
+              )}
+            </View>
+
+            {/* Controls */}
+            <View className="items-center mb-8">
+              <View className="flex-row items-center justify-center gap-8">
+                
+                {/* Keyboard Toggle */}
                 <Pressable
-                  onPress={handleToggleRecording}
-                  className={['h-20 w-20 items-center justify-center rounded-full shadow-lg', isRecording ? 'bg-rose-500' : 'bg-[#5E5CE6]'].join(' ')}
+                  onPress={() => { setUseKeyboard(v => !v); if (isRecording) stopRecording(); }}
+                  className={['h-12 w-12 items-center justify-center rounded-full border border-zinc-200 dark:border-zinc-800', useKeyboard ? 'bg-zinc-100 dark:bg-zinc-800' : 'bg-white dark:bg-black'].join(' ')}
                 >
-                  {isRecording
-                    ? <Square size={28} color="white" fill="white" />
-                    : <Mic size={28} color="white" strokeWidth={2.5} />}
+                  <KeyboardIcon size={22} color={useKeyboard ? '#007AFF' : (isDark ? '#8E8E93' : '#8E8E93')} />
+                </Pressable>
+
+                {/* Main Mic Button */}
+                <View className="items-center justify-center">
+                  {isRecording && <View className="absolute h-24 w-24 rounded-full bg-red-100 dark:bg-red-900/30" />}
+                  <Pressable
+                    onPress={handleToggleRecording}
+                    className={['h-[72px] w-[72px] items-center justify-center rounded-full', isRecording ? 'bg-[#FF3B30]' : 'bg-[#007AFF]'].join(' ')}
+                    style={{
+                      shadowColor: isRecording ? '#FF3B30' : '#007AFF', 
+                      shadowOffset: { width: 0, height: 4 }, 
+                      shadowOpacity: 0.3, 
+                      shadowRadius: 10, 
+                      elevation: 8
+                    }}
+                  >
+                    {isRecording
+                      ? <Square size={26} color="white" fill="white" />
+                      : <Mic size={28} color="white" strokeWidth={2.5} />}
+                  </Pressable>
+                </View>
+
+                {/* Clear Button */}
+                <Pressable
+                  onPress={() => {
+                    completedSegmentsRef.current = [];
+                    currentSegmentRef.current = '';
+                    displayTextRef.current = '';
+                    setDisplayText('');
+                  }}
+                  className="h-12 w-12 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black"
+                >
+                  <Text className="text-[12px] font-medium text-zinc-500 dark:text-zinc-400">Clear</Text>
                 </Pressable>
               </View>
-
-              <Pressable
-                onPress={() => {
-                  completedSegmentsRef.current = [];
-                  currentSegmentRef.current = '';
-                  displayTextRef.current = '';
-                  setDisplayText('');
-                }}
-                className="h-12 w-12 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800"
-              >
-                <Text className="text-[10px] font-bold text-zinc-400 uppercase">Clear</Text>
-              </Pressable>
-            </View>
-            <Text className={['mt-3 font-bold tracking-[1.5px] uppercase text-[10px]', isRecording ? 'text-rose-500' : 'text-[#5E5CE6]'].join(' ')}>
-              {isRecording ? 'Listening...' : (useKeyboard ? 'Keyboard Mode' : 'Voice Mode')}
-            </Text>
-          </View>
-
-          {/* Save */}
-          <Pressable
-            onPress={handleSave}
-            disabled={!displayText.trim() || isSaving}
-            className={[
-              'w-full rounded-2xl py-4 active:opacity-90 shadow-sm flex-row justify-center items-center',
-              (displayText.trim() && !isSaving) ? 'bg-[#5E5CE6]' : 'bg-zinc-200 dark:bg-zinc-800'
-            ].join(' ')}
-          >
-            {isSaving ? (
-              <ActivityIndicator color="white" size="small" />
-            ) : (
-              <Text className={['text-center font-bold', displayText.trim() ? 'text-white' : 'text-zinc-400 dark:text-zinc-600'].join(' ')}>
-                Save Thought
+              <Text className={['mt-4 font-semibold tracking-wide text-[12px]', isRecording ? 'text-[#FF3B30]' : 'text-[#007AFF]'].join(' ')}>
+                {isRecording ? 'LISTENING' : (useKeyboard ? 'KEYBOARD' : 'VOICE')}
               </Text>
-            )}
-          </Pressable>
+            </View>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
