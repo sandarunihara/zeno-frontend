@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Bell, ChevronDown, ChevronRight, Clock, Mic, AlertTriangle, RefreshCw, Plus, Flag, ChevronRight as ChevronRightIcon } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { dashboardApi, Task } from '../../api/dashboardApi';
+import { healthApi, StepBucketResponse } from '../../api/healthApi';
 import BrainDumpModal from '../../components/Dashboard/BrainDumpModal';
 import CreateTaskModal from '../../components/Dashboard/CreateTaskModal';
 
@@ -50,6 +51,8 @@ interface DashboardScreenProps {
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const { isDark } = useTheme();
   const [energyScore, setEnergyScore] = useState<number | null>(null);
+  const [stepsData, setStepsData] = useState<StepBucketResponse | null>(null);
+  const [stepsLoading, setStepsLoading] = useState(true);
   const [energyLoading, setEnergyLoading] = useState(true);
   const [needsMoodCheck, setNeedsMoodCheck] = useState(false);
   const [askConsent, setAskConsent] = useState(false);
@@ -124,9 +127,24 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     }
   }, [fetchDashboardTasks]);
 
+  const fetchStepsToday = useCallback(async () => {
+    try {
+      setStepsLoading(true);
+      const data = await healthApi.getStepsToday();
+      if (data && data.success) {
+        setStepsData(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch steps today", error);
+    } finally {
+      setStepsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchMoodlog();
-  }, [fetchMoodlog]);
+    fetchStepsToday();
+  }, [fetchMoodlog, fetchStepsToday]);
 
   const getEnergyLabel = () => {
     if (energyLoading) return 'Loading...';
@@ -545,7 +563,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                 </Text>
               </View>
               <Pressable
-                onPress={fetchMoodlog}
+                onPress={() => {
+                  fetchMoodlog();
+                  fetchStepsToday();
+                }}
                 className="h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black"
                 android_ripple={{ color: isDark ? '#2C2C2E' : '#F2F2F7', radius: 18 }}
               >

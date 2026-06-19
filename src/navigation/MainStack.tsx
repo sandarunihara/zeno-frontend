@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import DashboardScreen from '../screens/Dashboard/DashboardScreen';
+import HealthScreen from '../screens/Health/HealthScreen';
 import ProfileScreen from '../screens/Profile/ProfileScreen';
 import SubscriptionGhostbusterScreen from '../screens/Ghostbuster/SubscriptionGhostbusterScreen';
 import { useTheme } from '../theme/ThemeContext';
@@ -24,6 +25,10 @@ const MainStack: React.FC = () => {
         component={DashboardScreen}
       />
       <Tab.Screen
+        name="Health"
+        component={HealthScreen}
+      />
+      <Tab.Screen
         name="Ghostbuster"
         component={SubscriptionGhostbusterScreen}
       />
@@ -36,3 +41,4 @@ const MainStack: React.FC = () => {
 };
 
 export default MainStack;
+

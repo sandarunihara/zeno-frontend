@@ -1,7 +1,39 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { DeviceEventEmitter } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { axiosClient } from '../api/axiosClient';
+import { axiosClient, API_BASE_URL } from '../api/axiosClient';
+import StepCounter, { requestActivityRecognitionPermission } from '../native/StepCounter';
+
+const base64Decode = (str: string): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let buffer = '';
+  const cleanStr = str.replace(/=+$/, '');
+  for (let i = 0; i < cleanStr.length; i++) {
+    const char = cleanStr[i];
+    const idx = chars.indexOf(char);
+    if (idx === -1) continue;
+    buffer += idx.toString(2).padStart(6, '0');
+  }
+  let result = '';
+  for (let i = 0; i + 8 <= buffer.length; i += 8) {
+    const byte = buffer.substring(i, i + 8);
+    result += String.fromCharCode(parseInt(byte, 2));
+  }
+  return result;
+};
+
+const getUserIdFromToken = (token: string): string => {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return '';
+    const payloadStr = base64Decode(parts[1]);
+    const payload = JSON.parse(payloadStr);
+    return payload.jti || payload.id || '';
+  } catch (e) {
+    console.error('Error decoding token for userId:', e);
+    return '';
+  }
+};
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -35,6 +67,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (accessToken) {
           setIsLoggedIn(true);
+          
+          // Verify or launch background service on app launch
+          try {
+            const refreshToken = await SecureStore.getItemAsync('refreshToken');
+            const userId = getUserIdFromToken(accessToken);
+            const hasPermission = await requestActivityRecognitionPermission();
+            if (hasPermission) {
+              await StepCounter.startService(String(accessToken), String(refreshToken), userId, API_BASE_URL);
+            }
+          } catch (err) {
+            console.error('Failed to start StepCounter service on checkAuthStatus:', err);
+          }
         }
       } catch (error) {
         console.error('Error checking auth status:', error);
@@ -68,6 +112,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await SecureStore.setItemAsync('refreshToken', String(refreshtoken));
 
       setIsLoggedIn(true);
+
+      // Start step counter background service
+      try {
+        const userId = getUserIdFromToken(accesstoken);
+        const hasPermission = await requestActivityRecognitionPermission();
+        if (hasPermission) {
+          await StepCounter.startService(String(accesstoken), String(refreshtoken), userId, API_BASE_URL);
+        }
+      } catch (err) {
+        console.error('Failed to start StepCounter service on login:', err);
+      }
     } catch (error) {
       throw error;
     }
@@ -91,6 +146,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await SecureStore.setItemAsync('refreshToken', String(refreshtoken));
 
         setIsLoggedIn(true);
+
+        // Start step counter background service
+        try {
+          const userId = getUserIdFromToken(accesstoken);
+          const hasPermission = await requestActivityRecognitionPermission();
+          if (hasPermission) {
+            await StepCounter.startService(String(accesstoken), String(refreshtoken), userId, API_BASE_URL);
+          }
+        } catch (err) {
+          console.error('Failed to start StepCounter service on signup:', err);
+        }
       } catch (error) {
         throw error;
       }
@@ -104,6 +170,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await SecureStore.deleteItemAsync('refreshToken');
       setIsLoggedIn(false);
       setUser(null);
+
+      // Stop background step counter service
+      try {
+        await StepCounter.stopService();
+      } catch (err) {
+        console.error('Failed to stop StepCounter service on logout:', err);
+      }
     } catch (error) {
       console.error('Error logging out:', error);
     }

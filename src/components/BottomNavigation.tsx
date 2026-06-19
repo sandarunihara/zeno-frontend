@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, Text, View, Platform } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Home, User, Ghost } from 'lucide-react-native';
+import { Home, User, Ghost, Heart } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -25,7 +25,14 @@ export const BottomNavigation: React.FC<BottomTabBarProps> = ({
     >
       {state.routes.map((route, index) => {
         const isFocused = state.index === index;
-        const Icon = route.name === 'Dashboard' ? Home : route.name === 'Ghostbuster' ? Ghost : User;
+        const Icon =
+          route.name === 'Dashboard'
+            ? Home
+            : route.name === 'Health'
+            ? Heart
+            : route.name === 'Ghostbuster'
+            ? Ghost
+            : User;
         
         return (
           <Pressable
@@ -58,7 +65,13 @@ export const BottomNavigation: React.FC<BottomTabBarProps> = ({
                 isFocused ? 'text-[#007AFF]' : 'text-[#999999] dark:text-[#8E8E93]',
               ].join(' ')}
             >
-              {route.name === 'Dashboard' ? 'Home' : route.name === 'Ghostbuster' ? 'Ghostbuster' : 'Profile'}
+              {route.name === 'Dashboard'
+                ? 'Home'
+                : route.name === 'Health'
+                ? 'Health'
+                : route.name === 'Ghostbuster'
+                ? 'Ghostbuster'
+                : 'Profile'}
             </Text>
           </Pressable>
         );

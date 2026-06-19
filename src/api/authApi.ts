@@ -18,6 +18,16 @@ export interface AuthResponse {
   message: string;
 }
 
+export interface UserProfile {
+  id: string;
+  email: string;
+  fname: string;
+  lname: string;
+  height: number | null;
+  weight: number | null;
+  hobbies: string[];
+}
+
 export const authApi = {
   signup: async (payload: SignupPayload): Promise<AuthResponse> => {
     const response = await axiosClient.post<AuthResponse>('/api/auth/signup', payload);
@@ -35,4 +45,15 @@ export const authApi = {
     });
     return response.data;
   },
+
+  getMe: async (): Promise<UserProfile> => {
+    const response = await axiosClient.get<UserProfile>('/api/auth/me');
+    return response.data;
+  },
+
+  updateProfile: async (payload: Partial<UserProfile>): Promise<UserProfile> => {
+    const response = await axiosClient.put<UserProfile>('/api/auth/me', payload);
+    return response.data;
+  },
 };
+

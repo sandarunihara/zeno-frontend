@@ -26,7 +26,7 @@ const resolveApiBaseUrl = (): string => {
   return RAW_API_BASE_URL;
 };
 
-const API_BASE_URL = resolveApiBaseUrl();
+export const API_BASE_URL = resolveApiBaseUrl();
 
 export const axiosClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
