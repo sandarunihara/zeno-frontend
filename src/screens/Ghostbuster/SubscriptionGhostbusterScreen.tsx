@@ -7,9 +7,14 @@ import { Mail, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react-native'
 import { useTheme } from '../../theme/ThemeContext';
 
 GoogleSignin.configure({
-  scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+  scopes: [
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/calendar.readonly',
+    'https://www.googleapis.com/auth/calendar.events.readonly'
+  ],
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '636937484642-75d0g92ab923ucc30fqjgl8a9hh0ahln.apps.googleusercontent.com',
   offlineAccess: true, // Requires offline access to get serverAuthCode
+  forceCodeForRefreshToken: true,
 });
 
 const SubscriptionGhostbusterScreen: React.FC = () => {
@@ -81,7 +86,7 @@ const SubscriptionGhostbusterScreen: React.FC = () => {
         const userInfo = response.data;
         if (userInfo.serverAuthCode) {
           const emailToUse = userInfo.user.email;
-
+          
           // Connect Gmail via backend - it will associate the token to the logged in Zeno user via JWT
           await axiosClient.post('/api/auth/connect-gmail', {
             email: emailToUse,

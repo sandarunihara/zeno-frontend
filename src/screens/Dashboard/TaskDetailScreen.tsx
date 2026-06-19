@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View, Pressable, TextInput, Switch, Alert, Modal } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View, Pressable, TextInput, Switch, Alert, Modal, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { ArrowLeft, Clock, AlertTriangle, CheckCircle2, Edit3, Save, X, Flag, ChevronRight, Trash2 } from 'lucide-react-native';
@@ -520,13 +520,15 @@ const TaskDetailScreen: React.FC = () => {
               )}
             </Pressable>
           )}
-          <Pressable
-            onPress={() => setIsEditing(true)}
-            className="p-2 rounded-full active:opacity-60"
-            hitSlop={8}
-          >
-            <Edit3 size={20} color="#007AFF" />
-          </Pressable>
+          {!task.isFromCalender && (
+            <Pressable
+              onPress={() => setIsEditing(true)}
+              className="p-2 rounded-full active:opacity-60"
+              hitSlop={8}
+            >
+              <Edit3 size={20} color="#007AFF" />
+            </Pressable>
+          )}
           <Pressable
             onPress={handleDeleteWithConfirmation}
             className="p-2 rounded-full active:opacity-60"
@@ -614,12 +616,56 @@ const TaskDetailScreen: React.FC = () => {
             <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2 ml-1">
               Notes
             </Text>
-            <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 px-4 py-4"
-            >
-              <Text className="text-[15px] leading-6 text-zinc-700 dark:text-zinc-300">
-                {task.description}
-              </Text>
+            <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 px-4 py-4">
+              {(() => {
+                const desc = task.description;
+                const marker = "Meeting Link:";
+                const idx = desc.indexOf(marker);
+                if (idx === -1) {
+                  return (
+                    <Text className="text-[15px] leading-6 text-zinc-700 dark:text-zinc-300">
+                      {desc}
+                    </Text>
+                  );
+                }
+                
+                const textPart = desc.substring(0, idx).trim();
+                const linkPart = desc.substring(idx + marker.length).trim();
+                
+                return (
+                  <View>
+                    {textPart.length > 0 && (
+                      <Text className="text-[15px] leading-6 text-zinc-700 dark:text-zinc-300 mb-3">
+                        {textPart}
+                      </Text>
+                    )}
+                    <View className="flex-row items-center gap-1.5 rounded-2xl bg-[#007AFF]/10 p-3">
+                      <Text className="text-[14px] font-semibold text-zinc-800 dark:text-zinc-200">Meeting Room:</Text>
+                      <Pressable onPress={() => Linking.openURL(linkPart)} className="flex-1">
+                        <Text className="text-[14px] font-semibold text-[#007AFF] underline" numberOfLines={1}>
+                          {linkPart}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })()}
             </View>
+          </View>
+        )}
+
+        {/* Calendar Link Redirect */}
+        {task.isFromCalender && task.calenderEventId && (
+          <View className="mx-5 mt-4">
+            <Pressable
+              onPress={() => {
+                const url = `https://calendar.google.com/calendar/r/eventedit/${task.calenderEventId}`;
+                Linking.openURL(url).catch(err => console.error("Error opening URL", err));
+              }}
+              className="rounded-3xl bg-[#007AFF]/10 border border-[#007AFF]/20 px-4 py-3.5 flex-row items-center justify-center active:opacity-80"
+            >
+              <Text className="text-[15px] font-semibold text-[#007AFF]">🗓 Open in Google Calendar</Text>
+            </Pressable>
           </View>
         )}
 

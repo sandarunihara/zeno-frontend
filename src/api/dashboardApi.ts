@@ -28,6 +28,9 @@ export interface Task {
   parentTaskId?: number | null;
   hasMicroSteps: boolean;
   microSteps?: Task[] | null;
+  isFromCalender?: boolean;
+  calenderEventId?: string;
+  calenderEventEtag?: string;
 }
 
 export interface DashboardResponse {

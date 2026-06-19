@@ -16,6 +16,7 @@ const AllTasksScreen: React.FC = () => {
   const [checkedTasks, setCheckedTasks] = useState<Record<number, boolean>>({});
   const [expandedTasks, setExpandedTasks] = useState<Record<number, boolean>>({});
   const [isCreateTaskVisible, setIsCreateTaskVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<'tasks' | 'calendar'>('tasks');
 
   const fetchTasks = async () => {
     try {
@@ -241,8 +242,13 @@ const AllTasksScreen: React.FC = () => {
     );
   };
 
-  const pendingTasks = tasks.filter((t) => t.status !== 'COMPLETED');
-  const completedTasks = tasks.filter((t) => t.status === 'COMPLETED');
+  const filteredTasks = tasks.filter((t) => {
+    if (activeTab === 'tasks') return true;
+    return !!t.isFromCalender;
+  });
+
+  const pendingTasks = filteredTasks.filter((t) => t.status !== 'COMPLETED');
+  const completedTasks = filteredTasks.filter((t) => t.status === 'COMPLETED');
   const pendingCount = pendingTasks.length;
 
   return (
@@ -285,15 +291,75 @@ const AllTasksScreen: React.FC = () => {
           {loading ? 'Loading...' : `${pendingCount} ${pendingCount === 1 ? 'task' : 'tasks'} remaining`}
         </Text>
 
+        {/* Tabs for My Tasks vs Calendar Schedule */}
+        <View className="flex-row rounded-full bg-zinc-100 dark:bg-zinc-900 p-1 mb-5">
+          <Pressable
+            onPress={() => setActiveTab('tasks')}
+            className={`flex-1 py-2.5 rounded-full items-center justify-center ${
+              activeTab === 'tasks' ? 'bg-white dark:bg-zinc-800' : ''
+            }`}
+            style={
+              activeTab === 'tasks'
+                ? {
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 1.5,
+                    elevation: 2,
+                  }
+                : undefined
+            }
+          >
+            <Text
+              className={`text-sm font-semibold ${
+                activeTab === 'tasks' ? 'text-black dark:text-white' : 'text-zinc-500'
+              }`}
+            >
+              My Tasks
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setActiveTab('calendar')}
+            className={`flex-1 py-2.5 rounded-full items-center justify-center ${
+              activeTab === 'calendar' ? 'bg-white dark:bg-zinc-800' : ''
+            }`}
+            style={
+              activeTab === 'calendar'
+                ? {
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.12,
+                    shadowRadius: 1.5,
+                    elevation: 2,
+                  }
+                : undefined
+            }
+          >
+            <Text
+              className={`text-sm font-semibold ${
+                activeTab === 'calendar' ? 'text-black dark:text-white' : 'text-zinc-500'
+              }`}
+            >
+              Calendar Events
+            </Text>
+          </Pressable>
+        </View>
+
         {loading ? (
           <View className="items-center py-16">
             <ActivityIndicator size="large" color="#007AFF" />
           </View>
-        ) : tasks.length === 0 ? (
-          <View className="items-center py-16 rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800">
+        ) : filteredTasks.length === 0 ? (
+          <View className="items-center py-16 rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 px-6">
             <Text className="text-4xl mb-3">🎉</Text>
-            <Text className="text-[17px] font-semibold text-black dark:text-white">No Tasks Yet</Text>
-            <Text className="text-[14px] text-zinc-400 dark:text-zinc-500 mt-1">Tap + to create your first task</Text>
+            <Text className="text-[17px] font-semibold text-black dark:text-white text-center">
+              {activeTab === 'calendar' ? 'No Calendar Events' : 'No Tasks Yet'}
+            </Text>
+            <Text className="text-[14px] text-zinc-400 dark:text-zinc-500 mt-1 text-center">
+              {activeTab === 'calendar' 
+                ? "No calendar-synced tasks for today. Disconnect and reconnect on the Ghostbuster screen or trigger a sync if you have today's events."
+                : 'Tap + to create your first task'}
+            </Text>
           </View>
         ) : (
           <>

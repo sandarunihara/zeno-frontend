@@ -6,7 +6,7 @@ import { useTheme } from '../../theme/ThemeContext';
 import { dashboardApi, Task } from '../../api/dashboardApi';
 import BrainDumpModal from '../../components/Dashboard/BrainDumpModal';
 import CreateTaskModal from '../../components/Dashboard/CreateTaskModal';
-import { useNavigation } from '@react-navigation/native';
+
 
 /** Format an ISO-8601 deadline string into a human-friendly label */
 const formatDeadline = (deadline?: string | null): string | null => {
@@ -43,9 +43,12 @@ const isUrgent = (deadline?: string | null): boolean => {
   return diff > 0 && diff < 24 * 60 * 60 * 1000;
 };
 
-const DashboardScreen: React.FC = () => {
+interface DashboardScreenProps {
+  navigation: any;
+}
+
+const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const { isDark } = useTheme();
-  const navigation = useNavigation<any>();
   const [energyScore, setEnergyScore] = useState<number | null>(null);
   const [energyLoading, setEnergyLoading] = useState(true);
   const [needsMoodCheck, setNeedsMoodCheck] = useState(false);
@@ -65,6 +68,9 @@ const DashboardScreen: React.FC = () => {
 
   // Track which parent tasks are expanded
   const [expandedTasks, setExpandedTasks] = useState<Record<number, boolean>>({});
+
+  // Active tab state: 'tasks' or 'calendar'
+  const [activeTab, setActiveTab] = useState<'tasks' | 'calendar'>('tasks');
 
   /** Store dashboard response data into state */
   const applyDashboardData = useCallback((data: { displayTasks: Task[]; empatheticMessage: string; askConsent: boolean }) => {
@@ -429,8 +435,12 @@ const DashboardScreen: React.FC = () => {
     </Modal>
   );
 
-  // Separate top-level tasks (no parentTaskId) — micro-steps are nested inside their parent
-  const topLevelTasks = displayTasks.filter((t) => !t.parentTaskId);
+  // Separate top-level tasks based on active tab
+  const topLevelTasks = displayTasks.filter((t) => {
+    if (t.parentTaskId) return false;
+    if (activeTab === 'tasks') return !t.isFromCalender;
+    return !!t.isFromCalender;
+  });
 
   // Count pending tasks
   const pendingCount = topLevelTasks.filter((t) => !checkedTasks[t.id]).length;
@@ -592,11 +602,9 @@ const DashboardScreen: React.FC = () => {
               Your Tasks
             </Text>
             <View className="flex-row items-center gap-3">
-              {displayTasks.length > 0 && (
-                <Text className="text-[13px] font-medium text-zinc-400 dark:text-zinc-500">
-                  {pendingCount} pending
-                </Text>
-              )}
+              <Text className="text-[13px] font-medium text-zinc-400 dark:text-zinc-500">
+                {pendingCount} pending
+              </Text>
               <Pressable
                 onPress={() => setIsCreateTaskVisible(true)}
                 className="h-8 w-8 items-center justify-center rounded-full bg-[#007AFF] active:opacity-80"
@@ -611,6 +619,60 @@ const DashboardScreen: React.FC = () => {
                 <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
               </Pressable>
             </View>
+          </View>
+
+          {/* Tabs for My Tasks vs Calendar Schedule */}
+          <View className="flex-row rounded-full bg-zinc-100 dark:bg-zinc-900 p-1 mb-4">
+            <Pressable
+              onPress={() => setActiveTab('tasks')}
+              className={`flex-1 py-2.5 rounded-full items-center justify-center ${
+                activeTab === 'tasks' ? 'bg-white dark:bg-zinc-800' : ''
+              }`}
+              style={
+                activeTab === 'tasks'
+                  ? {
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.12,
+                      shadowRadius: 1.5,
+                      elevation: 2,
+                    }
+                  : undefined
+              }
+            >
+              <Text
+                className={`text-sm font-semibold ${
+                  activeTab === 'tasks' ? 'text-black dark:text-white' : 'text-zinc-500'
+                }`}
+              >
+                My Tasks
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setActiveTab('calendar')}
+              className={`flex-1 py-2.5 rounded-full items-center justify-center ${
+                activeTab === 'calendar' ? 'bg-white dark:bg-zinc-800' : ''
+              }`}
+              style={
+                activeTab === 'calendar'
+                  ? {
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.12,
+                      shadowRadius: 1.5,
+                      elevation: 2,
+                    }
+                  : undefined
+              }
+            >
+              <Text
+                className={`text-sm font-semibold ${
+                  activeTab === 'calendar' ? 'text-black dark:text-white' : 'text-zinc-500'
+                }`}
+              >
+                Calendar Events
+              </Text>
+            </Pressable>
           </View>
 
           {tasksLoading ? (
