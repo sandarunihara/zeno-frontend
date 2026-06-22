@@ -30,6 +30,7 @@ const SubscriptionGhostbusterScreen: React.FC = () => {
     try {
       setIsLoading(true);
       const response = await axiosClient.get('/api/auth/me');
+      
       if (response.data && response.data.gmailToken) {
         setGmailConnected(true);
         setConnectedEmail(response.data.email);
@@ -55,7 +56,6 @@ const SubscriptionGhostbusterScreen: React.FC = () => {
       if (response.data && response.data.gmailToken) {
         setGmailConnected(true);
         setConnectedEmail(response.data.email);
-        
         const subResponse = await axiosClient.get('/api/core/sub/user');
         setSubscriptions(subResponse.data || []);
       } else {

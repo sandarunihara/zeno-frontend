@@ -97,7 +97,6 @@ class StepCounterService : Service(), SensorEventListener {
         
         val currentSteps = event.values[0].toInt()
         val lastSavedSteps = sharedPreferences.getInt("lastSavedSteps", -1)
-        val lastUploadTime = sharedPreferences.getLong("lastUploadTime", 0L)
         val currentTime = System.currentTimeMillis()
 
         if (lastSavedSteps == -1) {
@@ -118,22 +117,48 @@ class StepCounterService : Service(), SensorEventListener {
         }
 
         val delta = currentSteps - lastSavedSteps
+        if (delta > 0) {
+            val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(currentTime))
+            val pendingKey = "pending_$dateStr"
+            val pendingSteps = sharedPreferences.getInt(pendingKey, 0)
+            
+            sharedPreferences.edit()
+                .putInt(pendingKey, pendingSteps + delta)
+                .putInt("lastSavedSteps", currentSteps)
+                .apply()
+        }
+
+        val lastUploadTime = sharedPreferences.getLong("lastUploadTime", 0L)
         val timeElapsed = currentTime - lastUploadTime
         val fiveMinutesMs = 5 * 60 * 1000
 
-        if (delta >= 10 || (timeElapsed >= fiveMinutesMs && delta > 0)) {
-            sendStepsToBackend(delta, currentSteps, currentTime)
+        if (timeElapsed >= fiveMinutesMs || delta >= 10) {
+            uploadPendingSteps(currentTime)
         }
     }
 
-    private fun sendStepsToBackend(delta: Int, currentSteps: Int, currentTime: Long) {
+    private fun uploadPendingSteps(currentTime: Long) {
+        val allPrefs = sharedPreferences.all
+        for (key in allPrefs.keys) {
+            if (key.startsWith("pending_")) {
+                val dateStr = key.substring("pending_".length)
+                val stepsToUpload = allPrefs[key] as? Int ?: 0
+                if (stepsToUpload > 0) {
+                    sendStepsToBackend(dateStr, stepsToUpload, currentTime)
+                }
+            }
+        }
+    }
+
+    private fun sendStepsToBackend(dateStr: String, stepsToUpload: Int, currentTime: Long) {
         val accessToken = sharedPreferences.getString("accessToken", null) ?: return
         val apiBaseUrl = sharedPreferences.getString("apiBaseUrl", null) ?: return
         val refreshToken = sharedPreferences.getString("refreshToken", null)
 
         val url = "$apiBaseUrl/api/core/health/steps"
         val json = JSONObject().apply {
-            put("steps", delta)
+            put("steps", stepsToUpload)
+            put("date", dateStr)
         }
 
         val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -144,17 +169,12 @@ class StepCounterService : Service(), SensorEventListener {
             .build()
 
         client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                // If it fails, keep lastSavedSteps as is, so it accumulates on next attempt
-            }
+            override fun onFailure(call: Call, e: IOException) {}
 
             override fun onResponse(call: Call, response: Response) {
                 response.use {
                     if (response.isSuccessful) {
-                        sharedPreferences.edit()
-                            .putInt("lastSavedSteps", currentSteps)
-                            .putLong("lastUploadTime", currentTime)
-                            .apply()
+                        onUploadSuccess(dateStr, stepsToUpload, currentTime)
                     } else if (response.code == 401 && refreshToken != null) {
                         val refreshed = refreshAuthTokenSynchronously(apiBaseUrl, refreshToken)
                         if (refreshed) {
@@ -170,10 +190,7 @@ class StepCounterService : Service(), SensorEventListener {
                                     override fun onResponse(call: Call, retryResponse: Response) {
                                         retryResponse.use {
                                             if (retryResponse.isSuccessful) {
-                                                sharedPreferences.edit()
-                                                    .putInt("lastSavedSteps", currentSteps)
-                                                    .putLong("lastUploadTime", currentTime)
-                                                    .apply()
+                                                onUploadSuccess(dateStr, stepsToUpload, currentTime)
                                             }
                                         }
                                     }
@@ -184,6 +201,21 @@ class StepCounterService : Service(), SensorEventListener {
                 }
             }
         })
+    }
+
+    private fun onUploadSuccess(dateStr: String, stepsUploaded: Int, currentTime: Long) {
+        val pendingKey = "pending_$dateStr"
+        val currentPending = sharedPreferences.getInt(pendingKey, 0)
+        val newPending = Math.max(0, currentPending - stepsUploaded)
+        
+        val editor = sharedPreferences.edit()
+        if (newPending == 0) {
+            editor.remove(pendingKey)
+        } else {
+            editor.putInt(pendingKey, newPending)
+        }
+        editor.putLong("lastUploadTime", currentTime)
+        editor.apply()
     }
 
     private fun refreshAuthTokenSynchronously(apiBaseUrl: String, refreshToken: String): Boolean {

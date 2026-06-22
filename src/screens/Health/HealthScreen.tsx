@@ -177,7 +177,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
             <Text className="text-zinc-400 dark:text-zinc-500 text-[10px] font-bold uppercase tracking-[1.5px]">
               {getFormattedDate()}
             </Text>
-            <Text className="text-[34px] font-bold tracking-tight text-zinc-955 dark:text-white">Summary</Text>
+            <Text className="text-[34px] font-bold tracking-tight text-zinc-900 dark:text-white">Summary</Text>
           </View>
           {/* Profile Initials Circle */}
           <View className="h-10 w-10 items-center justify-center rounded-full bg-[#007AFF]/10 dark:bg-[#007AFF]/20 border border-[#007AFF]/15">
@@ -193,7 +193,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
             setActiveModalMetric('move');
             setModalTimeframe('D');
           }}
-          className="rounded-[28px] border border-zinc-150 bg-white dark:border-zinc-800/80 dark:bg-zinc-900/40 px-5 pt-5 pb-6 shadow-sm mb-4"
+          className="rounded-[28px] border border-zinc-200 bg-white dark:border-zinc-800/80 dark:bg-zinc-900/40 px-5 pt-5 pb-6 shadow-sm mb-4"
           style={{
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 2 },
@@ -201,7 +201,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
             shadowRadius: 8,
           }}
         >
-          <Text className="text-[10px] font-bold uppercase tracking-[1.5px] text-zinc-450 dark:text-zinc-400">Activity Ring</Text>
+          <Text className="text-[10px] font-bold uppercase tracking-[1.5px] text-zinc-500 dark:text-zinc-400">Activity Ring</Text>
           <View className="flex-row items-center mt-4">
             {/* Visual Ring representation */}
             <View className="relative h-28 w-28 items-center justify-center mr-6">
@@ -236,7 +236,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
             </View>
           </View>
         </Pressable>
-
+        
         {/* 2-Column widgets */}
         <View className="flex-row gap-4 mb-4">
           {/* Steps count widget */}
@@ -245,7 +245,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
               setActiveModalMetric('steps');
               setModalTimeframe('D');
             }}
-            className="flex-1 rounded-[28px] border border-zinc-150 bg-white dark:border-zinc-800/80 dark:bg-zinc-900/40 px-5 pt-5 pb-6"
+            className="flex-1 rounded-[28px] border border-zinc-200 bg-white dark:border-zinc-800/80 dark:bg-zinc-900/40 px-5 pt-5 pb-6"
             style={{
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 2 },
@@ -254,11 +254,13 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
             }}
           >
             <View className="flex-row justify-between items-center">
-              <Text className="text-[10px] font-bold uppercase tracking-[1.2px] text-zinc-450 dark:text-zinc-400">Steps</Text>
+              <Text className="text-[10px] font-bold uppercase tracking-[1.2px] text-zinc-500 dark:text-zinc-400">Steps</Text>
               <ChevronRight size={14} color="#8E8E93" />
             </View>
-            <Text className="text-[11px] text-zinc-455 dark:text-zinc-500 mt-1">Today</Text>
-            <Text className="text-[26px] font-extrabold text-[#AF52DE] dark:text-[#C57BFA] mt-1.5">{steps.toLocaleString()}</Text>
+            <Text className="text-[11px] text-zinc-500 dark:text-zinc-500 mt-1">Today</Text>
+            <View className="flex-row items-baseline mt-1.5">
+              <Text className="text-[26px] font-extrabold text-[#AF52DE] dark:text-[#C57BFA]">{steps.toLocaleString()}</Text>
+            </View>
 
             {/* Steps chart */}
             {renderCardChart('bg-[#AF52DE] dark:bg-[#C57BFA]', hourlySteps, 300)}
@@ -277,7 +279,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
               setActiveModalMetric('distance');
               setModalTimeframe('D');
             }}
-            className="flex-1 rounded-[28px] border border-zinc-150 bg-white dark:border-zinc-800/80 dark:bg-zinc-900/40 px-5 pt-5 pb-6"
+            className="flex-1 rounded-[28px] border border-zinc-200 bg-white dark:border-zinc-800/80 dark:bg-zinc-900/40 px-5 pt-5 pb-6"
             style={{
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 2 },
@@ -286,14 +288,14 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
             }}
           >
             <View className="flex-row justify-between items-center">
-              <Text className="text-[10px] font-bold uppercase tracking-[1.2px] text-zinc-455 dark:text-zinc-400">Distance</Text>
+              <Text className="text-[10px] font-bold uppercase tracking-[1.2px] text-zinc-500 dark:text-zinc-400">Distance</Text>
               <ChevronRight size={14} color="#8E8E93" />
             </View>
-            <Text className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">Today</Text>
-            <Text className="text-[26px] font-extrabold text-[#00B4D8] dark:text-[#00E5FF] mt-1.5">
-              {distanceMiles.toFixed(2)}
-              <Text className="text-xs font-bold uppercase text-zinc-400 dark:text-zinc-500 ml-0.5">MI</Text>
-            </Text>
+            <Text className="text-[11px] text-zinc-500 dark:text-zinc-500 mt-1">Today</Text>
+            <View className="flex-row items-baseline mt-1.5">
+              <Text className="text-[26px] font-extrabold text-[#00B4D8] dark:text-[#00E5FF]">{distanceMiles.toFixed(2)}</Text>
+              <Text className="text-[10px] font-bold uppercase text-zinc-400 dark:text-zinc-500 ml-1">MI</Text>
+            </View>
 
             {/* Distance chart */}
             {renderCardChart('bg-[#00B4D8] dark:bg-[#00E5FF]', hourlySteps, 300)}
@@ -313,7 +315,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
             setActiveModalMetric('sleep');
             setModalTimeframe('D');
           }}
-          className="rounded-[28px] border border-zinc-150 bg-white dark:border-zinc-800/80 dark:bg-zinc-900/40 px-5 pt-5 pb-6 mb-4"
+          className="rounded-[28px] border border-zinc-200 bg-white dark:border-zinc-800/80 dark:bg-zinc-900/40 px-5 pt-5 pb-6 mb-4"
           style={{
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 2 },
@@ -324,7 +326,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
           <View className="flex-row justify-between items-center">
             <View className="flex-row items-center gap-2">
               <Moon size={15} color="#34C759" />
-              <Text className="text-[10px] font-bold uppercase tracking-[1.5px] text-zinc-450 dark:text-zinc-400">Sleep (Coming Soon)</Text>
+              <Text className="text-[10px] font-bold uppercase tracking-[1.5px] text-zinc-500 dark:text-zinc-400">Sleep (Coming Soon)</Text>
             </View>
             <ChevronRight size={14} color="#8E8E93" />
           </View>
@@ -340,7 +342,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
           </View>
           {/* Segmented mockup sleep bar */}
           <View className="h-4 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden flex-row mt-4.5">
-            <View style={{ flex: 1.5 }} className="bg-teal-650 dark:bg-teal-500" />
+            <View style={{ flex: 1.5 }} className="bg-teal-600 dark:bg-teal-500" />
             <View style={{ flex: 4.5 }} className="bg-emerald-500" />
             <View style={{ flex: 2 }} className="bg-green-300 dark:bg-green-400" />
           </View>
@@ -354,7 +356,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
 
         {/* Mood & Energy Section */}
         <View
-          className="rounded-[28px] border border-zinc-150 bg-white dark:bg-zinc-900/40 px-5 pt-5 pb-6 border-zinc-150 dark:border-zinc-800/80"
+          className="rounded-[28px] border border-zinc-200 bg-white dark:bg-zinc-900/40 px-5 pt-5 pb-6 border-zinc-200 dark:border-zinc-800/80"
           style={{
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 2 },
@@ -372,7 +374,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
                 <Text className="text-[16px] font-bold text-zinc-900 dark:text-white">
                   Energy level: {mood.energyScore}/10
                 </Text>
-                <Text className="text-xs text-zinc-450 dark:text-zinc-400 mt-1 leading-[18px]">
+                <Text className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-[18px]">
                   Logged energy score via dashboard widgets.
                 </Text>
               </View>
@@ -394,14 +396,14 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
         onRequestClose={() => setActiveModalMetric(null)}
       >
         <SafeAreaView className="flex-1 bg-white dark:bg-black">
-          <View className="flex-row items-center justify-between px-6 py-4 border-b border-zinc-150 dark:border-zinc-900">
+          <View className="flex-row items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-900">
             <Pressable
               onPress={() => setActiveModalMetric(null)}
-              className="h-9 w-9 items-center justify-center rounded-full bg-zinc-105 dark:bg-zinc-900 active:opacity-75"
+              className="h-9 w-9 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-900 active:opacity-75"
             >
               <ChevronLeft size={20} color={isDark ? 'white' : '#1C1C1E'} />
             </Pressable>
-            <Text className="text-[16px] font-bold text-zinc-850 dark:text-white uppercase tracking-wider">
+            <Text className="text-[16px] font-bold text-zinc-800 dark:text-white uppercase tracking-wider">
               {activeModalMetric === 'steps'
                 ? 'Step Count'
                 : activeModalMetric === 'distance'
@@ -432,14 +434,14 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
             </View>
 
             {/* Total / Stats summary */}
-            <Text className="text-zinc-455 dark:text-zinc-500 text-[10px] font-bold uppercase tracking-[1.5px]">Total</Text>
+            <Text className="text-zinc-500 dark:text-zinc-500 text-[10px] font-bold uppercase tracking-[1.5px]">Total</Text>
             <View className="flex-row items-baseline mt-1.5 mb-8">
               {activeModalMetric === 'steps' && (
                 <>
                   <Text className="text-4xl font-extrabold text-[#AF52DE] dark:text-[#C57BFA]">
                     {modalTimeframe === 'D' ? steps.toLocaleString() : (steps * 7).toLocaleString()}
                   </Text>
-                  <Text className="text-sm font-bold text-zinc-450 dark:text-zinc-550 ml-1.5 uppercase">Steps</Text>
+                  <Text className="text-sm font-bold text-zinc-500 dark:text-zinc-500 ml-1.5 uppercase">Steps</Text>
                 </>
               )}
               {activeModalMetric === 'distance' && (
@@ -447,7 +449,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
                   <Text className="text-4xl font-extrabold text-[#00B4D8] dark:text-[#00E5FF]">
                     {modalTimeframe === 'D' ? distanceMiles.toFixed(2) : (distanceMiles * 7).toFixed(2)}
                   </Text>
-                  <Text className="text-sm font-bold text-zinc-450 dark:text-zinc-550 ml-1.5 uppercase">MI</Text>
+                  <Text className="text-sm font-bold text-zinc-500 dark:text-zinc-500 ml-1.5 uppercase">MI</Text>
                 </>
               )}
               {activeModalMetric === 'move' && (
@@ -455,7 +457,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
                   <Text className="text-4xl font-extrabold text-[#FF004F]">
                     {modalTimeframe === 'D' ? caloriesBurned : caloriesBurned * 7}
                   </Text>
-                  <Text className="text-sm font-bold text-zinc-450 dark:text-zinc-550 ml-1.5 uppercase">CAL</Text>
+                  <Text className="text-sm font-bold text-zinc-500 dark:text-zinc-500 ml-1.5 uppercase">CAL</Text>
                 </>
               )}
               {activeModalMetric === 'sleep' && (
@@ -463,27 +465,27 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
                   <Text className="text-4xl font-extrabold text-[#34C759] dark:text-[#30D158]">
                     {modalTimeframe === 'D' ? '7h 45m' : '54h 15m'}
                   </Text>
-                  <Text className="text-sm font-bold text-zinc-450 dark:text-zinc-550 ml-1.5 uppercase">Sleep</Text>
+                  <Text className="text-sm font-bold text-zinc-500 dark:text-zinc-500 ml-1.5 uppercase">Sleep</Text>
                 </>
               )}
             </View>
 
             {/* High-Resolution Grid Hourly Chart */}
-            <View className="h-[240px] w-full border-t border-b border-zinc-150 dark:border-zinc-900 justify-between py-6">
+            <View className="h-[240px] w-full border-t border-b border-zinc-200 dark:border-zinc-900 justify-between py-6">
               {/* Y Axis Guide labels */}
               <View className="absolute left-0 right-0 h-full justify-between pr-2 pointer-events-none">
-                <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-650 text-right">
+                <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-600 text-right">
                   {activeModalMetric === 'steps' ? '2,000' : activeModalMetric === 'distance' ? '1.0 MI' : activeModalMetric === 'move' ? '80 CAL' : '8h'}
                 </Text>
-                <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-650 text-right">
+                <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-600 text-right">
                   {activeModalMetric === 'steps' ? '1,000' : activeModalMetric === 'distance' ? '0.5 MI' : activeModalMetric === 'move' ? '40 CAL' : '4h'}
                 </Text>
-                <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-650 text-right">0</Text>
+                <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-600 text-right">0</Text>
               </View>
 
               {/* Grid Horizontal Guide lines */}
-              <View className="absolute left-0 right-0 top-[24px] border-t border-zinc-105 dark:border-zinc-900 border-dashed" />
-              <View className="absolute left-0 right-0 top-[120px] border-t border-zinc-105 dark:border-zinc-900 border-dashed" />
+              <View className="absolute left-0 right-0 top-[24px] border-t border-zinc-200 dark:border-zinc-900 border-dashed" />
+              <View className="absolute left-0 right-0 top-[120px] border-t border-zinc-200 dark:border-zinc-900 border-dashed" />
 
               {/* Vertical Bars container */}
               <View className="flex-row items-end justify-between h-[160px] w-full px-2">
@@ -539,7 +541,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
             </View>
 
             {/* Apple style info banner */}
-            <View className="flex-row bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-150 dark:border-zinc-800 rounded-3xl p-4.5 mt-8 items-start gap-3">
+            <View className="flex-row bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-4.5 mt-8 items-start gap-3">
               <Info size={16} color="#007AFF" className="mt-0.5" />
               <View className="flex-1">
                 <Text className="text-xs font-bold text-zinc-900 dark:text-white">About Stride Length & Distance</Text>
