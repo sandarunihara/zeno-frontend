@@ -21,6 +21,7 @@ import {
   Check,
   Edit2,
   LogOut,
+  Moon,
 } from 'lucide-react-native';
 import { useAuth } from '../../store/AuthContext';
 import { authApi, UserProfile } from '../../api/authApi';
@@ -35,12 +36,13 @@ const ProfileScreen: React.FC = () => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Inline editing states
-  const [activeEditField, setActiveEditField] = useState<'fname' | 'lname' | 'height' | 'weight' | null>(null);
+  const [activeEditField, setActiveEditField] = useState<'fname' | 'lname' | 'height' | 'weight' | 'sleepTarget' | null>(null);
   const [editValues, setEditValues] = useState({
     fname: '',
     lname: '',
     height: '',
     weight: '',
+    sleepTarget: '',
   });
 
   // Hobbies adding state
@@ -79,7 +81,7 @@ const ProfileScreen: React.FC = () => {
   };
 
   // Inline Edit handlers
-  const handleStartEdit = (field: 'fname' | 'lname' | 'height' | 'weight', currentVal: string) => {
+  const handleStartEdit = (field: 'fname' | 'lname' | 'height' | 'weight' | 'sleepTarget', currentVal: string) => {
     setActiveEditField(field);
     setEditValues((prev) => ({
       ...prev,
@@ -91,25 +93,29 @@ const ProfileScreen: React.FC = () => {
     setActiveEditField(null);
   };
 
-  const handleFieldChange = (field: 'fname' | 'lname' | 'height' | 'weight', value: string) => {
+  const handleFieldChange = (field: 'fname' | 'lname' | 'height' | 'weight' | 'sleepTarget', value: string) => {
     setEditValues((prev) => ({
       ...prev,
       [field]: value,
     }));
   };
 
-  const handleSaveField = async (field: 'fname' | 'lname' | 'height' | 'weight') => {
+  const handleSaveField = async (field: 'fname' | 'lname' | 'height' | 'weight' | 'sleepTarget') => {
     if (!profile) return;
     const rawValue = editValues[field].trim();
     let updatedValue: any = rawValue;
 
-    if (field === 'height' || field === 'weight') {
+    if (field === 'height' || field === 'weight' || field === 'sleepTarget') {
       if (rawValue === '') {
         updatedValue = null;
       } else {
         const parsed = parseFloat(rawValue);
         if (isNaN(parsed)) {
           Alert.alert('Invalid Number', 'Please enter a valid numeric value.');
+          return;
+        }
+        if (field === 'sleepTarget' && (parsed < 2 || parsed > 16)) {
+          Alert.alert('Invalid Goal', 'Sleep goal must be between 2 and 16 hours.');
           return;
         }
         updatedValue = parsed;
@@ -181,7 +187,7 @@ const ProfileScreen: React.FC = () => {
 
   const renderEditableRow = (
     label: string,
-    field: 'fname' | 'lname' | 'height' | 'weight',
+    field: 'fname' | 'lname' | 'height' | 'weight' | 'sleepTarget',
     value: string | number | null,
     icon: React.ReactNode,
     placeholder: string,
@@ -321,6 +327,12 @@ const ProfileScreen: React.FC = () => {
             <Text className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#007AFF] dark:text-indigo-300 mb-2">Physical Metrics</Text>
             {renderEditableRow('Height', 'height', profile?.height ?? null, <Ruler size={15} color="#007AFF" />, 'Enter height', 'numeric', 'cm')}
             {renderEditableRow('Weight', 'weight', profile?.weight ?? null, <Scale size={15} color="#007AFF" />, 'Enter weight', 'numeric', 'kg')}
+          </View>
+
+          {/* Sleep Settings Card */}
+          <View className="mt-4 rounded-[28px] border border-zinc-150 bg-white p-5 dark:border-zinc-800/80 dark:bg-zinc-900/40">
+            <Text className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#007AFF] dark:text-indigo-300 mb-2">Sleep Settings</Text>
+            {renderEditableRow('Sleep Goal', 'sleepTarget', profile?.sleepTarget ?? 8, <Moon size={15} color="#007AFF" />, 'Enter sleep target', 'numeric', 'hours')}
           </View>
 
           {/* Hobbies Card */}

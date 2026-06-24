@@ -3,6 +3,7 @@ import { DeviceEventEmitter } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { axiosClient, API_BASE_URL } from '../api/axiosClient';
 import StepCounter, { requestActivityRecognitionPermission } from '../native/StepCounter';
+import SleepTracker from '../native/SleepTracker';
 
 const base64Decode = (str: string): string => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -76,8 +77,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (hasPermission) {
               await StepCounter.startService(String(accessToken), String(refreshToken), userId, API_BASE_URL);
             }
+            await SleepTracker.startTracking(String(accessToken), String(refreshToken), userId, API_BASE_URL);
           } catch (err) {
-            console.error('Failed to start StepCounter service on checkAuthStatus:', err);
+            console.error('Failed to start tracking services on checkAuthStatus:', err);
           }
         }
       } catch (error) {
@@ -120,8 +122,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (hasPermission) {
           await StepCounter.startService(String(accesstoken), String(refreshtoken), userId, API_BASE_URL);
         }
+        await SleepTracker.startTracking(String(accesstoken), String(refreshtoken), userId, API_BASE_URL);
       } catch (err) {
-        console.error('Failed to start StepCounter service on login:', err);
+        console.error('Failed to start tracking services on login:', err);
       }
     } catch (error) {
       throw error;
@@ -154,8 +157,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (hasPermission) {
             await StepCounter.startService(String(accesstoken), String(refreshtoken), userId, API_BASE_URL);
           }
+          await SleepTracker.startTracking(String(accesstoken), String(refreshtoken), userId, API_BASE_URL);
         } catch (err) {
-          console.error('Failed to start StepCounter service on signup:', err);
+          console.error('Failed to start tracking services on signup:', err);
         }
       } catch (error) {
         throw error;
@@ -171,11 +175,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoggedIn(false);
       setUser(null);
 
-      // Stop background step counter service
+      // Stop background tracking services
       try {
         await StepCounter.stopService();
+        await SleepTracker.stopTracking();
       } catch (err) {
-        console.error('Failed to stop StepCounter service on logout:', err);
+        console.error('Failed to stop tracking services on logout:', err);
       }
     } catch (error) {
       console.error('Error logging out:', error);

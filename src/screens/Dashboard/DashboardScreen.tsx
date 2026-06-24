@@ -4,7 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Bell, ChevronDown, ChevronRight, Clock, Mic, AlertTriangle, RefreshCw, Plus, Flag, ChevronRight as ChevronRightIcon } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { dashboardApi, Task } from '../../api/dashboardApi';
-import { healthApi, StepBucketResponse } from '../../api/healthApi';
+import { healthApi, StepBucketResponse, SleepRecordResponse } from '../../api/healthApi';
+import { authApi, UserProfile } from '../../api/authApi';
 import BrainDumpModal from '../../components/Dashboard/BrainDumpModal';
 import CreateTaskModal from '../../components/Dashboard/CreateTaskModal';
 
@@ -52,12 +53,14 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const { isDark } = useTheme();
   const [energyScore, setEnergyScore] = useState<number | null>(null);
   const [stepsData, setStepsData] = useState<StepBucketResponse | null>(null);
+  const [latestSleep, setLatestSleep] = useState<SleepRecordResponse | null>(null);
   const [stepsLoading, setStepsLoading] = useState(true);
   const [energyLoading, setEnergyLoading] = useState(true);
   const [needsMoodCheck, setNeedsMoodCheck] = useState(false);
   const [askConsent, setAskConsent] = useState(false);
   const [keepItLight, setKeepItLight] = useState<boolean | null>(null);
   const [empatheticMessage, setEmpatheticMessage] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   // Real tasks from the API
   const [displayTasks, setDisplayTasks] = useState<Task[]>([]);
@@ -144,6 +147,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   useEffect(() => {
     fetchMoodlog();
     fetchStepsToday();
+    authApi.getMe().then(setProfile).catch(console.error);
+    healthApi.getLatestSleep().then(setLatestSleep).catch(console.error);
   }, [fetchMoodlog, fetchStepsToday]);
 
   const getEnergyLabel = () => {
@@ -406,6 +411,130 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     );
   };
 
+  // ─── Mood Check popup ─── Blocking Modal ─────────────────────────
+  const renderMoodCheckModal = () => (
+    <Modal
+      transparent
+      visible={needsMoodCheck && !energyLoading}
+      animationType="fade"
+    >
+      <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 24 }}>
+        {/* Card — matches dashboard rounded-3xl cards */}
+        <View
+          style={{
+            backgroundColor: isDark ? '#000' : '#fff',
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: isDark ? '#27272a' : '#e4e4e7',
+            paddingTop: 32,
+            paddingBottom: 28,
+            paddingHorizontal: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.15,
+            shadowRadius: 24,
+            elevation: 12,
+          }}
+        >
+          {/* Badge */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 16 }}>
+            <View style={{
+              height: 24, width: 24, borderRadius: 6,
+              backgroundColor: isDark ? 'rgba(0,122,255,0.15)' : 'rgba(0,122,255,0.1)',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Text style={{ fontSize: 12 }}>🎯</Text>
+            </View>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#007AFF' }}>Mood Check</Text>
+          </View>
+
+          {/* Title */}
+          <Text style={{ fontSize: 17, fontWeight: '700', textAlign: 'center', color: isDark ? '#fff' : '#18181b', marginBottom: 6 }}>
+            {latestSleep?.success && latestSleep.totalSleepHours !== null && latestSleep.totalSleepHours < (profile?.sleepTarget ? profile.sleepTarget - 1.5 : 6)
+              ? "I see you had a rough night of sleep."
+              : "How's your energy right now?"}
+          </Text>
+
+          {/* Subtitle */}
+          <Text style={{ fontSize: 14, textAlign: 'center', color: isDark ? '#a1a1aa' : '#71717a', lineHeight: 20, marginBottom: 28 }}>
+            {latestSleep?.success && latestSleep.totalSleepHours !== null && latestSleep.totalSleepHours < (profile?.sleepTarget ? profile.sleepTarget - 1.5 : 6)
+              ? "I've prepared a 'Rest Mode' schedule for today, but how are you actually feeling?"
+              : "Log your energy level so we can personalize your tasks for today."}
+          </Text>
+
+          {/* Emoji buttons — horizontal, matching dashboard card aesthetic */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20 }}>
+            <Pressable
+              onPress={() => handleMoodSelect(2)}
+              android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5', radius: 40 }}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                width: 70,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <View style={{
+                height: 60, width: 60, borderRadius: 16,
+                alignItems: 'center', justifyContent: 'center',
+                borderWidth: 1.5,
+                borderColor: isDark ? '#27272a' : '#e4e4e7',
+                backgroundColor: isDark ? '#18181b' : '#fafafa',
+                marginBottom: 8,
+              }}>
+                <Text style={{ fontSize: 28 }}>🥱</Text>
+              </View>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: isDark ? '#a1a1aa' : '#52525b', textAlign: 'center', width: '100%' }}>Low</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleMoodSelect(5)}
+              android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5', radius: 40 }}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                width: 70,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <View style={{
+                height: 60, width: 60, borderRadius: 16,
+                alignItems: 'center', justifyContent: 'center',
+                borderWidth: 1.5,
+                borderColor: isDark ? '#27272a' : '#e4e4e7',
+                backgroundColor: isDark ? '#18181b' : '#fafafa',
+                marginBottom: 8,
+              }}>
+                <Text style={{ fontSize: 28 }}>😌</Text>
+              </View>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: isDark ? '#a1a1aa' : '#52525b', textAlign: 'center', width: '100%' }}>Okay</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleMoodSelect(9)}
+              android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5', radius: 40 }}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                width: 70,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <View style={{
+                height: 60, width: 60, borderRadius: 16,
+                alignItems: 'center', justifyContent: 'center',
+                borderWidth: 1.5,
+                borderColor: isDark ? '#27272a' : '#e4e4e7',
+                backgroundColor: isDark ? '#18181b' : '#fafafa',
+                marginBottom: 8,
+              }}>
+                <Text style={{ fontSize: 28 }}>⚡</Text>
+              </View>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: isDark ? '#a1a1aa' : '#52525b', textAlign: 'center', width: '100%' }}>High</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   // ─── Consent popup ─── iOS alert style ───────────────────────────
   const renderConsentPopup = () => (
     <Modal
@@ -493,65 +622,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             </Pressable>
           </View>
           <Text className="text-4xl font-bold tracking-tight text-black dark:text-white -mt-2 mb-4">
-            Alex
+            {profile?.fname || 'There'}
           </Text>
 
           {/* ─── Energy Bar ─── */}
           {energyLoading ? (
             <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 px-4 py-3 mb-4">
               <Text className="text-[14px] font-medium text-zinc-400">Loading energy...</Text>
-            </View>
-          ) : needsMoodCheck ? (
-            <View
-              className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 px-5 py-5 mb-4 overflow-hidden"
-            >
-              <View className="flex-row items-center gap-2 mb-2">
-                <View className="h-6 w-6 items-center justify-center rounded-md bg-[#007AFF]/10">
-                  <Text className="text-[13px]">🎯</Text>
-                </View>
-                <Text className="text-[13px] font-semibold text-[#007AFF]">Mood Check</Text>
-              </View>
-              <Text className="text-[15px] font-semibold text-zinc-900 dark:text-white mb-1">
-                How's your energy right now?
-              </Text>
-              <Text className="text-[13px] text-zinc-400 dark:text-zinc-500 mb-4">
-                This helps personalize your task list for today.
-              </Text>
-
-              <View className="flex-row items-center justify-center gap-5">
-                <Pressable
-                  onPress={() => handleMoodSelect(2)}
-                  className="items-center active:opacity-70"
-                >
-                  <View className="h-14 w-14 items-center justify-center rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black mb-1.5"
-                  >
-                    <Text className="text-2xl">🥱</Text>
-                  </View>
-                  <Text className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Low</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => handleMoodSelect(5)}
-                  className="items-center active:opacity-70"
-                >
-                  <View className="h-14 w-14 items-center justify-center rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black mb-1.5"
-                  >
-                    <Text className="text-2xl">😌</Text>
-                  </View>
-                  <Text className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Okay</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => handleMoodSelect(9)}
-                  className="items-center active:opacity-70"
-                >
-                  <View className="h-14 w-14 items-center justify-center rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black mb-1.5"
-                  >
-                    <Text className="text-2xl">⚡</Text>
-                  </View>
-                  <Text className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">High</Text>
-                </Pressable>
-              </View>
             </View>
           ) : (
             <View className="flex-row items-center justify-between mb-4">
@@ -736,6 +813,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         </ScrollView>
 
       </View>
+      {renderMoodCheckModal()}
       {renderConsentPopup()}
       <BrainDumpModal
         isVisible={isBrainDumpVisible}

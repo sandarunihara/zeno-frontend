@@ -25,6 +25,7 @@ export interface UserProfile {
   lname: string;
   height: number | null;
   weight: number | null;
+  sleepTarget: number | null;
   hobbies: string[];
 }
 

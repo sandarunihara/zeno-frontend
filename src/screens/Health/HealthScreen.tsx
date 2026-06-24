@@ -18,8 +18,9 @@ import {
   Moon,
   Smile,
   Info,
+  AlertTriangle,
 } from 'lucide-react-native';
-import { healthApi, StepBucketResponse } from '../../api/healthApi';
+import { healthApi, StepBucketResponse, SleepRecordResponse } from '../../api/healthApi';
 import { authApi, UserProfile } from '../../api/authApi';
 import { dashboardApi, MoodLog } from '../../api/dashboardApi';
 import { useTheme } from '../../theme/ThemeContext';
@@ -35,6 +36,8 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
 
   // API states
   const [stepsData, setStepsData] = useState<StepBucketResponse | null>(null);
+  const [sleepData, setSleepData] = useState<SleepRecordResponse | null>(null);
+  const [weeklySleepData, setWeeklySleepData] = useState<SleepRecordResponse[] | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [mood, setMood] = useState<MoodLog | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,15 +55,20 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
   const fetchHealthData = async () => {
     try {
       setLoading(true);
-      const [stepsRes, profileRes, moodRes] = await Promise.all([
+      const [stepsRes, profileRes, moodRes, sleepRes, weeklySleepRes] = await Promise.all([
         healthApi.getStepsToday().catch(() => null),
         authApi.getMe().catch(() => null),
         dashboardApi.getMoodlog().catch(() => null),
+        healthApi.getLatestSleep().catch(() => null),
+        healthApi.getWeeklySleep().catch(() => null),
       ]);
 
       if (stepsRes) setStepsData(stepsRes);
       if (profileRes) setProfile(profileRes);
       if (moodRes && moodRes.success) setMood(moodRes.moodLog);
+      if (sleepRes) setSleepData(sleepRes);
+      console.log('Latest Sleep:', sleepRes);
+      if (weeklySleepRes) setWeeklySleepData(weeklySleepRes);
     } catch (err) {
       console.error('Failed to load health statistics:', err);
     } finally {
@@ -114,7 +122,6 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
 
     return hourly;
   };
-
   const hourlySteps = getHourlySteps();
 
   // Helper to render inline hourly mini-bars on card
@@ -309,7 +316,7 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
           </Pressable>
         </View>
 
-        {/* Future Sleep Demo Card */}
+        {/* Sleep Card — Live Data */}
         <Pressable
           onPress={() => {
             setActiveModalMetric('sleep');
@@ -326,32 +333,66 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
           <View className="flex-row justify-between items-center">
             <View className="flex-row items-center gap-2">
               <Moon size={15} color="#34C759" />
-              <Text className="text-[10px] font-bold uppercase tracking-[1.5px] text-zinc-500 dark:text-zinc-400">Sleep (Coming Soon)</Text>
+              <Text className="text-[10px] font-bold uppercase tracking-[1.5px] text-zinc-500 dark:text-zinc-400">Sleep</Text>
             </View>
             <ChevronRight size={14} color="#8E8E93" />
           </View>
           <View className="flex-row items-baseline justify-between mt-4">
             <View>
               <Text className="text-xs text-zinc-400 dark:text-zinc-500">Last Night</Text>
-              <Text className="text-3xl font-extrabold text-[#34C759] dark:text-[#30D158] mt-1">7h 45m</Text>
+              {sleepData?.success && sleepData.totalSleepHours != null ? (
+                <Text className="text-3xl font-extrabold text-[#34C759] dark:text-[#30D158] mt-1">
+                  {Math.floor(sleepData.totalSleepHours)}h {Math.round((sleepData.totalSleepHours % 1) * 60)}m
+                </Text>
+              ) : (
+                <Text className="text-lg font-semibold text-zinc-400 dark:text-zinc-500 mt-1">No data yet</Text>
+              )}
             </View>
             <View className="items-end">
-              <Text className="text-[9px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Target: 8h</Text>
-              <Text className="text-[11px] font-bold text-emerald-500 mt-0.5">96% of goal</Text>
+              <Text className="text-[9px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Target: {profile?.sleepTarget ?? 8}h</Text>
+              {sleepData?.success && sleepData.totalSleepHours != null ? (
+                <Text className={`text-[11px] font-bold mt-0.5 ${sleepData.totalSleepHours >= ((profile?.sleepTarget ?? 8) * 0.875) ? 'text-emerald-500' : sleepData.totalSleepHours >= ((profile?.sleepTarget ?? 8) * 0.625) ? 'text-amber-500' : 'text-red-500'}`}>
+                  {Math.round((sleepData.totalSleepHours / (profile?.sleepTarget ?? 8)) * 100)}% of goal
+                </Text>
+              ) : (
+                <Text className="text-[11px] font-bold text-zinc-400 mt-0.5">--</Text>
+              )}
             </View>
           </View>
-          {/* Segmented mockup sleep bar */}
-          <View className="h-4 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden flex-row mt-4.5">
-            <View style={{ flex: 1.5 }} className="bg-teal-600 dark:bg-teal-500" />
-            <View style={{ flex: 4.5 }} className="bg-emerald-500" />
-            <View style={{ flex: 2 }} className="bg-green-300 dark:bg-green-400" />
-          </View>
-          {/* Sleep sub-labels - padded to avoid border corner intersection */}
-          <View className="flex-row justify-between mt-3 px-2">
-            <Text className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500">REM (1.5h)</Text>
-            <Text className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500">Deep (4.5h)</Text>
-            <Text className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500">Light (1.75h)</Text>
-          </View>
+          {/* Sleep quality bar */}
+          {sleepData?.success && sleepData.totalSleepHours != null ? (
+            <>
+              <View className="h-4 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden flex-row mt-4.5">
+                <View
+                  style={{ flex: Math.min(sleepData.totalSleepHours / (profile?.sleepTarget ?? 8), 1) }}
+                  className={`rounded-full ${
+                    sleepData.totalSleepHours >= ((profile?.sleepTarget ?? 8) * 0.875) ? 'bg-emerald-500' : sleepData.totalSleepHours >= ((profile?.sleepTarget ?? 8) * 0.625) ? 'bg-amber-500' : 'bg-red-500'
+                  }`}
+                />
+                <View style={{ flex: Math.max(1 - sleepData.totalSleepHours / (profile?.sleepTarget ?? 8), 0) }} />
+              </View>
+              <View className="flex-row justify-between items-center mt-3 px-2">
+                {sleepData.sleepStartTime != null && (
+                  <Text className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500">
+                    Slept {new Date(sleepData.sleepStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                )}
+                {sleepData.sleepEndTime != null && (
+                  <Text className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500">
+                    Woke {new Date(sleepData.sleepEndTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                )}
+                {(sleepData.microAwakeningsCount ?? 0) > 0 && (
+                  <View className="flex-row items-center gap-1">
+                    <AlertTriangle size={9} color="#F59E0B" />
+                    <Text className="text-[9px] font-bold text-amber-500">{sleepData.microAwakeningsCount} wake-up{(sleepData.microAwakeningsCount ?? 0) > 1 ? 's' : ''}</Text>
+                  </View>
+                )}
+              </View>
+            </>
+          ) : (
+            <View className="h-4 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden mt-4.5" />
+          )}
         </Pressable>
 
         {/* Mood & Energy Section */}
@@ -463,7 +504,19 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
               {activeModalMetric === 'sleep' && (
                 <>
                   <Text className="text-4xl font-extrabold text-[#34C759] dark:text-[#30D158]">
-                    {modalTimeframe === 'D' ? '7h 45m' : '54h 15m'}
+                    {modalTimeframe === 'D' ? (
+                      sleepData?.success && sleepData.totalSleepHours != null
+                        ? `${Math.floor(sleepData.totalSleepHours)}h ${Math.round((sleepData.totalSleepHours % 1) * 60)}m`
+                        : '--'
+                    ) : (
+                      weeklySleepData && weeklySleepData.length > 0
+                        ? (() => {
+                            const total = weeklySleepData.reduce((acc, curr) => acc + (curr.totalSleepHours || 0), 0);
+                            const avg = total / weeklySleepData.length;
+                            return `${Math.floor(avg)}h ${Math.round((avg % 1) * 60)}m avg`;
+                          })()
+                        : '--'
+                    )}
                   </Text>
                   <Text className="text-sm font-bold text-zinc-500 dark:text-zinc-500 ml-1.5 uppercase">Sleep</Text>
                 </>
@@ -487,21 +540,73 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
               <View className="absolute left-0 right-0 top-[24px] border-t border-zinc-200 dark:border-zinc-900 border-dashed" />
               <View className="absolute left-0 right-0 top-[120px] border-t border-zinc-200 dark:border-zinc-900 border-dashed" />
 
-              {/* Vertical Bars container */}
               <View className="flex-row items-end justify-between h-[160px] w-full px-2">
                 {activeModalMetric === 'sleep' ? (
-                  // Render sleep stacked segments
-                  new Array(24).fill(0).map((_, index) => {
-                    const isSleepTime = index >= 22 || index <= 5;
-                    return (
-                      <View key={index} className="flex-1 items-center h-full justify-end relative">
-                        <View className="absolute bottom-0 w-[1px] h-full bg-zinc-100 dark:bg-zinc-900/50" />
-                        {isSleepTime && (
-                          <View className="w-[6px] h-[90px] rounded-t-full bg-emerald-500 z-10" />
-                        )}
-                      </View>
-                    );
-                  })
+                  modalTimeframe === 'D' ? (
+                    // Render sleep timeline from real data for 'D' timeframe
+                    new Array(24).fill(0).map((_, index) => {
+                      // Determine if this hour falls within the actual sleep window
+                      let isSleepTime = false;
+                      if (sleepData?.success && sleepData.sleepStartTime != null && sleepData.sleepEndTime != null) {
+                        const startHour = new Date(sleepData.sleepStartTime).getHours();
+                        const endHour = new Date(sleepData.sleepEndTime).getHours();
+                        if (startHour > endHour) {
+                          // Overnight sleep (e.g., 23 to 7)
+                          isSleepTime = index >= startHour || index <= endHour;
+                        } else {
+                          isSleepTime = index >= startHour && index <= endHour;
+                        }
+                      } else {
+                        isSleepTime = index >= 22 || index <= 5; // Fallback
+                      }
+
+                      // Check if this hour had a micro-awakening
+                      const hasInterruption = sleepData?.interruptionTimes?.some(t => {
+                        const h = new Date(t).getHours();
+                        return h === index;
+                      }) ?? false;
+
+                      return (
+                        <View key={index} className="flex-1 items-center h-full justify-end relative">
+                          <View className="absolute bottom-0 w-[1px] h-full bg-zinc-100 dark:bg-zinc-900/50" />
+                          {isSleepTime && (
+                            <View className={`w-[6px] rounded-t-full z-10 ${hasInterruption ? 'h-[40px] bg-amber-500' : 'h-[90px] bg-emerald-500'}`} />
+                          )}
+                        </View>
+                      );
+                    })
+                  ) : (
+                    // Render 7-day trend chart
+                    new Array(7).fill(0).map((_, index) => {
+                      // Generate past 7 days (including today)
+                      const d = new Date();
+                      d.setDate(d.getDate() - (6 - index));
+                      const dateStr = d.toISOString().split('T')[0];
+                      
+                      const record = weeklySleepData?.find(r => r.sleepDate === dateStr);
+                      const hours = record?.totalSleepHours || 0;
+                      const target = profile?.sleepTarget ?? 8;
+                      const ratio = Math.min(hours / target, 1.2); // max 120% height
+                      
+                      // Calculate height (max 140px)
+                      const height = Math.max(ratio * 140, 4); // min 4px if no data
+                      
+                      // Color based on target completion
+                      let colorClass = 'bg-zinc-200 dark:bg-zinc-800'; // no data
+                      if (hours > 0) {
+                        if (hours >= target * 0.875) colorClass = 'bg-emerald-500';
+                        else if (hours >= target * 0.625) colorClass = 'bg-amber-500';
+                        else colorClass = 'bg-red-500';
+                      }
+
+                      return (
+                        <View key={index} className="flex-1 items-center h-full justify-end relative">
+                          {/* Target line indicator if requested, could be overlaid */}
+                          <View className={`w-[20px] rounded-t-lg z-10 ${colorClass}`} style={{ height }} />
+                        </View>
+                      );
+                    })
+                  )
                 ) : (
                   // Render active steps/distance/move bars
                   hourlySteps.map((val, index) => {
@@ -531,12 +636,27 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
                 )}
               </View>
 
-              {/* X Axis timestamps */}
-              <View className="flex-row justify-between px-2">
-                <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-600">12 AM</Text>
-                <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-600">6 AM</Text>
-                <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-600">12 PM</Text>
-                <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-600">6 PM</Text>
+              {/* X-axis labels */}
+              <View className={`flex-row justify-between w-full px-2 mt-4 ${activeModalMetric === 'sleep' && modalTimeframe === 'W' ? 'pr-4 pl-4' : ''}`}>
+                {activeModalMetric === 'sleep' && modalTimeframe === 'W' ? (
+                  new Array(7).fill(0).map((_, i) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - (6 - i));
+                    const dayStr = d.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
+                    return (
+                      <Text key={i} className="text-[10px] font-bold text-zinc-400 dark:text-zinc-600">
+                        {dayStr}
+                      </Text>
+                    );
+                  })
+                ) : (
+                  <>
+                    <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-600">12 AM</Text>
+                    <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-600">6 AM</Text>
+                    <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-600">12 PM</Text>
+                    <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-600">6 PM</Text>
+                  </>
+                )}
               </View>
             </View>
 
@@ -544,10 +664,21 @@ const HealthScreen: React.FC<HealthScreenProps> = ({ navigation }) => {
             <View className="flex-row bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-4.5 mt-8 items-start gap-3">
               <Info size={16} color="#007AFF" className="mt-0.5" />
               <View className="flex-1">
-                <Text className="text-xs font-bold text-zinc-900 dark:text-white">About Stride Length & Distance</Text>
-                <Text className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-[15px]">
-                  Step Distance is calculated using the formula Stride Length = Height * 0.413. Height is fetched dynamically from your Zeno profile. If no height is set, an average height of 170cm is used.
-                </Text>
+                {activeModalMetric === 'sleep' ? (
+                  <>
+                    <Text className="text-xs font-bold text-zinc-900 dark:text-white">About Passive Sleep Tracking</Text>
+                    <Text className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-[15px]">
+                      Sleep is inferred passively using your phone's ambient light sensor, proximity sensor, and screen state. No wearable needed. Brief wake-ups under 20 minutes are automatically bridged into a single sleep session.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text className="text-xs font-bold text-zinc-900 dark:text-white">About Stride Length & Distance</Text>
+                    <Text className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 leading-[15px]">
+                      Step Distance is calculated using the formula Stride Length = Height * 0.413. Height is fetched dynamically from your Zeno profile. If no height is set, an average height of 170cm is used.
+                    </Text>
+                  </>
+                )}
               </View>
             </View>
 
