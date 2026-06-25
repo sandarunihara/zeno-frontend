@@ -3,8 +3,9 @@ import { Pressable, Text, View, ActivityIndicator, Alert, Image, ScrollView, Ref
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { axiosClient } from '../../api/axiosClient';
-import { Mail, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react-native';
+import { Mail, CheckCircle2, AlertCircle, RefreshCw, ShieldCheck, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
+import { useNavigation } from '@react-navigation/native';
 
 GoogleSignin.configure({
   scopes: [
@@ -19,6 +20,7 @@ GoogleSignin.configure({
 
 const SubscriptionGhostbusterScreen: React.FC = () => {
   const { isDark } = useTheme();
+  const navigation = useNavigation<any>();
   const [isLoading, setIsLoading] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);
@@ -137,7 +139,35 @@ const SubscriptionGhostbusterScreen: React.FC = () => {
               Ghostbuster
             </Text>
           </View>
-          
+
+          {/* Social Shield Navigation Card */}
+          <Pressable
+            onPress={() => navigation.navigate('SocialBattery')}
+            className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 px-4 py-4 mb-4 mt-3 active:opacity-80"
+            style={{
+              shadowColor: '#007AFF',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: isDark ? 0.12 : 0.06,
+              shadowRadius: 8,
+              elevation: 2,
+            }}
+          >
+            <View className="flex-row items-center">
+              <View className="h-11 w-11 items-center justify-center rounded-2xl bg-[#007AFF]/10 mr-3">
+                <ShieldCheck size={22} color="#007AFF" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-[16px] font-semibold text-black dark:text-white">
+                  Social Shield
+                </Text>
+                <Text className="text-[13px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+                  AI-powered polite decline generator
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#C7C7CC" />
+            </View>
+          </Pressable>
+
           {/* Connection Status & Refresh Action Bar */}
           <View className="flex-row items-center justify-between mb-4 mt-2">
             <View className="flex-row items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black px-4 py-2">

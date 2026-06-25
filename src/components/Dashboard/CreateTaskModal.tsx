@@ -24,6 +24,14 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isVisible, onClose, o
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [dateObj, setDateObj] = useState(new Date());
 
+  const [startTimeDate, setStartTimeDate] = useState('');
+  const [startTimeTime, setStartTimeTime] = useState('');
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [startDateObj, setStartDateObj] = useState(new Date());
+
+  const [estimatedTimeStr, setEstimatedTimeStr] = useState('');
+
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +42,9 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isVisible, onClose, o
     setIsCritical(false);
     setDeadlineDate('');
     setDeadlineTime('');
+    setStartTimeDate('');
+    setStartTimeTime('');
+    setEstimatedTimeStr('');
     setError(null);
     onClose();
   }, [onClose]);
@@ -57,6 +68,23 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isVisible, onClose, o
         deadlineStr = `${d}T00:00:00`;
       }
 
+      let startTimeStr: string | null = null;
+      const sd = startTimeDate.trim();
+      const st = startTimeTime.trim();
+      if (sd && st) {
+        startTimeStr = `${sd}T${st}:00`;
+      } else if (sd) {
+        startTimeStr = `${sd}T00:00:00`;
+      }
+
+      let estimatedTime: number | null = null;
+      if (estimatedTimeStr.trim()) {
+        const parsed = parseInt(estimatedTimeStr, 10);
+        if (!isNaN(parsed)) {
+          estimatedTime = parsed;
+        }
+      }
+
       const response = await dashboardApi.createManualTask({
         title: title.trim(),
         description: description.trim() || undefined,
@@ -64,6 +92,8 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isVisible, onClose, o
         isCritical,
         status: 'PENDING',
         deadline: deadlineStr,
+        startTime: startTimeStr,
+        estimatedTime,
       });
 
       if (response.success) {
@@ -255,6 +285,82 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isVisible, onClose, o
                   }}
                 />
               )}
+            </View>
+
+            {/* ─── Start Time ─── */}
+            <View className="mx-5 mt-6">
+              <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2 ml-1">
+                Start Time
+              </Text>
+              <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                <Pressable
+                  onPress={() => setShowStartDatePicker(true)}
+                  className="flex-row items-center px-4 py-3.5"
+                >
+                  <Calendar size={18} color={isDark ? '#8E8E93' : '#8E8E93'} />
+                  <Text className="ml-3 flex-1 text-[16px] text-black dark:text-white">Date</Text>
+                  <Text className={`text-[16px] ${startTimeDate ? 'text-[#007AFF]' : 'text-zinc-300 dark:text-zinc-600'}`}>
+                    {startTimeDate ? formatDisplayDate(startTimeDate) : 'None'}
+                  </Text>
+                </Pressable>
+                <View className="h-[0.5px] ml-[52px] bg-zinc-100 dark:bg-zinc-700" />
+                <Pressable
+                  onPress={() => setShowStartTimePicker(true)}
+                  className="flex-row items-center px-4 py-3.5"
+                >
+                  <Zap size={18} color={isDark ? '#8E8E93' : '#8E8E93'} />
+                  <Text className="ml-3 flex-1 text-[16px] text-black dark:text-white">Time</Text>
+                  <Text className={`text-[16px] ${startTimeTime ? 'text-[#007AFF]' : 'text-zinc-300 dark:text-zinc-600'}`}>
+                    {startTimeTime || 'None'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {showStartDatePicker && (
+                <DateTimePicker
+                  value={startDateObj}
+                  mode="date"
+                  display="default"
+                  onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
+                    setShowStartDatePicker(false);
+                    if (selectedDate) {
+                      setStartDateObj(selectedDate);
+                      setStartTimeDate(selectedDate.toISOString().split('T')[0]);
+                    }
+                  }}
+                />
+              )}
+              {showStartTimePicker && (
+                <DateTimePicker
+                  value={startDateObj}
+                  mode="time"
+                  display="default"
+                  onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
+                    setShowStartTimePicker(false);
+                    if (selectedDate) {
+                      setStartDateObj(selectedDate);
+                      setStartTimeTime(selectedDate.toISOString().split('T')[1].substring(0, 5));
+                    }
+                  }}
+                />
+              )}
+            </View>
+
+            {/* ─── Estimated Time ─── */}
+            <View className="mx-5 mt-6">
+              <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2 ml-1">
+                Estimated Time (mins)
+              </Text>
+              <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                <TextInput
+                  value={estimatedTimeStr}
+                  onChangeText={setEstimatedTimeStr}
+                  placeholder="e.g. 30"
+                  keyboardType="numeric"
+                  placeholderTextColor={isDark ? '#636366' : '#C7C7CC'}
+                  className="px-4 py-3.5 text-[17px] text-black dark:text-white font-medium"
+                />
+              </View>
             </View>
 
             {/* ─── Priority Toggle ─── */}

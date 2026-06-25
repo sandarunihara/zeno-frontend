@@ -8,6 +8,7 @@ import MainStack from './MainStack';
 import OnboardingStack from './OnboardingStack';
 import AllTasksScreen from '../screens/Dashboard/AllTasksScreen';
 import TaskDetailScreen from '../screens/Dashboard/TaskDetailScreen';
+import SocialBatteryScreen from '../screens/Ghostbuster/SocialBatteryScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -39,6 +40,7 @@ const AppNavigator: React.FC = () => {
           <Stack.Screen name="MainStack" component={MainStack} />
           <Stack.Screen name="AllTasks" component={AllTasksScreen} />
           <Stack.Screen name="TaskDetail" component={TaskDetailScreen} />
+          <Stack.Screen name="SocialBattery" component={SocialBatteryScreen} />
         </>
       ) : (
         <Stack.Screen name="AuthStack" component={AuthStack} />

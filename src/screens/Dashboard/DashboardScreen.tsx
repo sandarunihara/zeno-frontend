@@ -1,14 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Bell, ChevronDown, ChevronRight, Clock, Mic, AlertTriangle, RefreshCw, Plus, Flag, ChevronRight as ChevronRightIcon } from 'lucide-react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { Bell, ChevronDown, ChevronRight, Clock, Mic, AlertTriangle, RefreshCw, Plus, Flag } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
-import { dashboardApi, Task } from '../../api/dashboardApi';
+import { dashboardApi, Task, FreeTimeResponse } from '../../api/dashboardApi';
 import { healthApi, StepBucketResponse, SleepRecordResponse } from '../../api/healthApi';
 import { authApi, UserProfile } from '../../api/authApi';
 import BrainDumpModal from '../../components/Dashboard/BrainDumpModal';
 import CreateTaskModal from '../../components/Dashboard/CreateTaskModal';
-
 
 /** Format an ISO-8601 deadline string into a human-friendly label */
 const formatDeadline = (deadline?: string | null): string | null => {
@@ -62,27 +62,24 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const [empatheticMessage, setEmpatheticMessage] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
-  // Real tasks from the API
+  const [freeTimeData, setFreeTimeData] = useState<FreeTimeResponse | null>(null);
+  const [freeTimeLoading, setFreeTimeLoading] = useState(false);
+
   const [displayTasks, setDisplayTasks] = useState<Task[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [isBrainDumpVisible, setIsBrainDumpVisible] = useState(false);
   const [isCreateTaskVisible, setIsCreateTaskVisible] = useState(false);
-  const [lastThought, setLastThought] = useState<string | null>(null);
+  const [showMicTooltip, setShowMicTooltip] = useState(false);
+  const justSetMoodRef = useRef(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Track checked state per task id
   const [checkedTasks, setCheckedTasks] = useState<Record<number, boolean>>({});
-
-  // Track which parent tasks are expanded
   const [expandedTasks, setExpandedTasks] = useState<Record<number, boolean>>({});
-
-  // Active tab state: 'tasks' or 'calendar'
   const [activeTab, setActiveTab] = useState<'tasks' | 'calendar'>('tasks');
 
-  /** Store dashboard response data into state */
   const applyDashboardData = useCallback((data: { displayTasks: Task[]; empatheticMessage: string; askConsent: boolean }) => {
     setDisplayTasks(data.displayTasks ?? []);
     setEmpatheticMessage(data.empatheticMessage ?? null);
-    // Auto-expand tasks that have micro steps
     const expanded: Record<number, boolean> = {};
     (data.displayTasks ?? []).forEach((t) => {
       if (t.microSteps && t.microSteps.length > 0) {
@@ -91,8 +88,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     });
     setExpandedTasks(expanded);
   }, []);
-
-  // TODO : if there is null isLight and askcontent is true need to update isLight
 
   const fetchDashboardTasks = useCallback(async (mood?: number, isLight?: boolean) => {
     try {
@@ -110,14 +105,26 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     }
   }, [applyDashboardData]);
 
+  const fetchFreeTime = useCallback(async () => {
+    try {
+      setFreeTimeLoading(true);
+      const data = await dashboardApi.getTodaysFreeTime();
+      setFreeTimeData(data);
+    } catch (error) {
+      console.error("Failed to fetch free time", error);
+    } finally {
+      setFreeTimeLoading(false);
+    }
+  }, []);
+
   const fetchMoodlog = useCallback(async () => {
     setEnergyLoading(true);
     try {
       const response = await dashboardApi.getMoodlog();
       if (response.success && response.moodLog) {
         setEnergyScore(response.moodLog.energyScore);
-        fetchDashboardTasks(response.moodLog.energyScore, response.moodLog.isLight);
-
+        await fetchDashboardTasks(response.moodLog.energyScore, response.moodLog.isLight);
+        fetchFreeTime();
         setNeedsMoodCheck(false);
       } else {
         setNeedsMoodCheck(true);
@@ -128,7 +135,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     } finally {
       setEnergyLoading(false);
     }
-  }, [fetchDashboardTasks]);
+  }, [fetchDashboardTasks, fetchFreeTime]);
 
   const fetchStepsToday = useCallback(async () => {
     try {
@@ -151,6 +158,30 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     healthApi.getLatestSleep().then(setLatestSleep).catch(console.error);
   }, [fetchMoodlog, fetchStepsToday]);
 
+  // Pulse animation for mic tooltip glow ring
+  useEffect(() => {
+    if (showMicTooltip) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.35, duration: 900, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
+      return () => loop.stop();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [showMicTooltip, pulseAnim]);
+
+  // Dismiss tooltip when user navigates away from Dashboard
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('blur', () => {
+      setShowMicTooltip(false);
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const getEnergyLabel = () => {
     if (energyLoading) return 'Loading...';
     if (energyScore === null) return 'Unknown';
@@ -169,6 +200,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const handleMoodSelect = async (score: number) => {
     setEnergyScore(score);
     setNeedsMoodCheck(false);
+    justSetMoodRef.current = true;
     if (score >= 8) {
       setAskConsent(true);
     } else {
@@ -180,6 +212,12 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
           const dashboardData = await dashboardApi.getDashboardTasks();
           applyDashboardData(dashboardData);
           setTasksLoading(false);
+          fetchFreeTime();
+          // Show mic tooltip after mood is set for the first time today
+          if (justSetMoodRef.current) {
+            setShowMicTooltip(true);
+            justSetMoodRef.current = false;
+          }
         } else {
           setNeedsMoodCheck(true);
         }
@@ -207,17 +245,19 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         const dashboardData = await dashboardApi.getDashboardTasks(isLight);
         applyDashboardData(dashboardData);
         setTasksLoading(false);
-        console.log("Updated Tasks based on consent:", dashboardData);
+        fetchFreeTime();
+        // Show mic tooltip after consent flow completes (high energy mood path)
+        if (justSetMoodRef.current) {
+          setShowMicTooltip(true);
+          justSetMoodRef.current = false;
+        }
       } else {
         console.warn("Failed to update moodlog with consent choice, response:", response);
       }
-
     } catch (error) {
       console.error("Failed to fetch tasks after consent", error);
     }
   };
-
-  // ─── Toggle helpers ───────────────────────────────────────────────
 
   const toggleTaskChecked = (taskId: number) => {
     setCheckedTasks((prev) => ({ ...prev, [taskId]: !prev[taskId] }));
@@ -249,8 +289,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     setExpandedTasks((prev) => ({ ...prev, [taskId]: !prev[taskId] }));
   };
 
-  // ─── Render helpers ───────────────────────────────────────────────
-
   const renderCheck = (checked: boolean) => (
     <View
       className={[
@@ -280,7 +318,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     );
   };
 
-  /** Render a single task card — iOS style */
   const renderTaskCard = (task: Task) => {
     const hasMicro = task.microSteps && task.microSteps.length > 0;
     const checked = !!checkedTasks[task.id];
@@ -292,15 +329,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     return (
       <View
         key={task.id}
-        className="mb-3 rounded-3xl bg-white dark:bg-black border border-zinc-100 dark:border-zinc-800 overflow-hidden"
+        className="mb-3 rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-900 overflow-hidden"
       >
-        {/* Main task row */}
         <Pressable
           className="flex-row items-center px-4 py-3.5"
-          onPress={() => navigation.navigate('TaskDetail', { taskId: task.id })}
+          onPress={() => { setShowMicTooltip(false); navigation.navigate('TaskDetail', { taskId: task.id }); }}
           android_ripple={{ color: isDark ? '#2C2C2E' : '#F2F2F7' }}
         >
-          {/* Checkbox */}
           <Pressable
             hitSlop={10}
             onPress={(e) => {
@@ -313,7 +348,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             {renderCheck(checked || isCompleted)}
           </Pressable>
 
-          {/* Content */}
           <View className="flex-1 mr-2">
             <View className="flex-row items-center gap-2">
               <Text
@@ -332,7 +366,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               )}
             </View>
 
-            {/* Meta row */}
             <View className="flex-row items-center gap-3 mt-1.5">
               {renderEffortBadge(task.effort_level)}
               {deadline && (
@@ -350,7 +383,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Expand chevron */}
           {hasMicro && (
             <Pressable
               onPress={(e) => { e.stopPropagation(); toggleExpanded(task.id); }}
@@ -365,17 +397,16 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
           )}
         </Pressable>
 
-        {/* Micro-steps */}
         {hasMicro && expanded && task.microSteps ? (
-          <View className="border-t border-zinc-100 dark:border-zinc-800">
+          <View className="border-t border-zinc-100 dark:border-zinc-900">
             {task.microSteps.map((step, index) => {
               const stepChecked = !!checkedTasks[step.id];
               const isLast = index === task.microSteps!.length - 1;
               return (
                 <Pressable
                   key={step.id}
-                  className={`flex-row items-center pl-[52px] pr-4 py-2.5 ${!isLast ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}`}
-                  onPress={() => navigation.navigate('TaskDetail', { taskId: step.id })}
+                  className={`flex-row items-center pl-[52px] pr-4 py-2.5 ${!isLast ? 'border-b border-zinc-100 dark:border-zinc-900' : ''}`}
+                  onPress={() => { setShowMicTooltip(false); navigation.navigate('TaskDetail', { taskId: step.id }); }}
                   android_ripple={{ color: isDark ? '#2C2C2E' : '#F2F2F7' }}
                 >
                   <Pressable
@@ -411,32 +442,23 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     );
   };
 
-  // ─── Mood Check popup ─── Blocking Modal ─────────────────────────
   const renderMoodCheckModal = () => (
-    <Modal
-      transparent
-      visible={needsMoodCheck && !energyLoading}
-      animationType="fade"
-    >
+    <Modal transparent visible={needsMoodCheck && !energyLoading} animationType="fade">
       <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 24 }}>
-        {/* Card — matches dashboard rounded-3xl cards */}
-        <View
-          style={{
-            backgroundColor: isDark ? '#000' : '#fff',
-            borderRadius: 24,
-            borderWidth: 1,
-            borderColor: isDark ? '#27272a' : '#e4e4e7',
-            paddingTop: 32,
-            paddingBottom: 28,
-            paddingHorizontal: 24,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.15,
-            shadowRadius: 24,
-            elevation: 12,
-          }}
-        >
-          {/* Badge */}
+        <View style={{
+          backgroundColor: isDark ? '#121214' : '#fff',
+          borderRadius: 24,
+          borderWidth: 1,
+          borderColor: isDark ? '#27272a' : '#e4e4e7',
+          paddingTop: 32,
+          paddingBottom: 28,
+          paddingHorizontal: 24,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.15,
+          shadowRadius: 24,
+          elevation: 12,
+        }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 16 }}>
             <View style={{
               height: 24, width: 24, borderRadius: 6,
@@ -448,30 +470,23 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             <Text style={{ fontSize: 13, fontWeight: '600', color: '#007AFF' }}>Mood Check</Text>
           </View>
 
-          {/* Title */}
           <Text style={{ fontSize: 17, fontWeight: '700', textAlign: 'center', color: isDark ? '#fff' : '#18181b', marginBottom: 6 }}>
             {latestSleep?.success && latestSleep.totalSleepHours !== null && latestSleep.totalSleepHours < (profile?.sleepTarget ? profile.sleepTarget - 1.5 : 6)
               ? "I see you had a rough night of sleep."
               : "How's your energy right now?"}
           </Text>
 
-          {/* Subtitle */}
           <Text style={{ fontSize: 14, textAlign: 'center', color: isDark ? '#a1a1aa' : '#71717a', lineHeight: 20, marginBottom: 28 }}>
             {latestSleep?.success && latestSleep.totalSleepHours !== null && latestSleep.totalSleepHours < (profile?.sleepTarget ? profile.sleepTarget - 1.5 : 6)
               ? "I've prepared a 'Rest Mode' schedule for today, but how are you actually feeling?"
               : "Log your energy level so we can personalize your tasks for today."}
           </Text>
 
-          {/* Emoji buttons — horizontal, matching dashboard card aesthetic */}
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20 }}>
             <Pressable
               onPress={() => handleMoodSelect(2)}
               android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5', radius: 40 }}
-              style={({ pressed }) => ({
-                alignItems: 'center',
-                width: 70,
-                opacity: pressed ? 0.7 : 1,
-              })}
+              style={({ pressed }) => ({ alignItems: 'center', width: 70, opacity: pressed ? 0.7 : 1 })}
             >
               <View style={{
                 height: 60, width: 60, borderRadius: 16,
@@ -483,17 +498,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               }}>
                 <Text style={{ fontSize: 28 }}>🥱</Text>
               </View>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: isDark ? '#a1a1aa' : '#52525b', textAlign: 'center', width: '100%' }}>Low</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: isDark ? '#a1a1aa' : '#52525b', textAlign: 'center' }}>Low</Text>
             </Pressable>
 
             <Pressable
               onPress={() => handleMoodSelect(5)}
               android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5', radius: 40 }}
-              style={({ pressed }) => ({
-                alignItems: 'center',
-                width: 70,
-                opacity: pressed ? 0.7 : 1,
-              })}
+              style={({ pressed }) => ({ alignItems: 'center', width: 70, opacity: pressed ? 0.7 : 1 })}
             >
               <View style={{
                 height: 60, width: 60, borderRadius: 16,
@@ -505,17 +516,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               }}>
                 <Text style={{ fontSize: 28 }}>😌</Text>
               </View>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: isDark ? '#a1a1aa' : '#52525b', textAlign: 'center', width: '100%' }}>Okay</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: isDark ? '#a1a1aa' : '#52525b', textAlign: 'center' }}>Okay</Text>
             </Pressable>
 
             <Pressable
               onPress={() => handleMoodSelect(9)}
               android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5', radius: 40 }}
-              style={({ pressed }) => ({
-                alignItems: 'center',
-                width: 70,
-                opacity: pressed ? 0.7 : 1,
-              })}
+              style={({ pressed }) => ({ alignItems: 'center', width: 70, opacity: pressed ? 0.7 : 1 })}
             >
               <View style={{
                 height: 60, width: 60, borderRadius: 16,
@@ -527,7 +534,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               }}>
                 <Text style={{ fontSize: 28 }}>⚡</Text>
               </View>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: isDark ? '#a1a1aa' : '#52525b', textAlign: 'center', width: '100%' }}>High</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: isDark ? '#a1a1aa' : '#52525b', textAlign: 'center' }}>High</Text>
             </Pressable>
           </View>
         </View>
@@ -535,45 +542,24 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     </Modal>
   );
 
-  // ─── Consent popup ─── iOS alert style ───────────────────────────
   const renderConsentPopup = () => (
-    <Modal
-      transparent
-      visible={askConsent}
-      animationType="fade"
-      onRequestClose={() => setAskConsent(false)}
-    >
+    <Modal transparent visible={askConsent} animationType="fade" onRequestClose={() => setAskConsent(false)}>
       <View className="flex-1 items-center justify-center bg-black/40 px-8">
-        <View className="w-full rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 overflow-hidden"
-          style={{
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.2,
-            shadowRadius: 24,
-            elevation: 12,
-          }}
+        <View className="w-full rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+          style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 24, elevation: 12 }}
         >
           <View className="px-6 pt-6 pb-5 items-center">
             <Text className="text-3xl mb-3">💪</Text>
-            <Text className="text-[17px] font-semibold text-zinc-900 dark:text-white text-center">
-              High Energy Detected!
-            </Text>
+            <Text className="text-[17px] font-semibold text-zinc-900 dark:text-white text-center">High Energy Detected!</Text>
             <Text className="mt-2 text-[14px] leading-5 text-zinc-500 dark:text-zinc-400 text-center">
               You're feeling great today. Do you want to tackle your most difficult tasks, or keep your day light?
             </Text>
           </View>
-
           <View className="border-t border-zinc-200 dark:border-zinc-800">
-            <Pressable
-              onPress={() => handleConsentChoice(false)}
-              className="py-3.5 items-center border-b border-zinc-200 dark:border-zinc-800 active:bg-zinc-50 dark:active:bg-zinc-900"
-            >
+            <Pressable onPress={() => handleConsentChoice(false)} className="py-3.5 items-center border-b border-zinc-200 dark:border-zinc-800 active:bg-zinc-50 dark:active:bg-zinc-900">
               <Text className="text-[17px] font-semibold text-[#007AFF]">Let's Crush It!</Text>
             </Pressable>
-            <Pressable
-              onPress={() => handleConsentChoice(true)}
-              className="py-3.5 items-center active:bg-zinc-50 dark:active:bg-zinc-900"
-            >
+            <Pressable onPress={() => handleConsentChoice(true)} className="py-3.5 items-center active:bg-zinc-50 dark:active:bg-zinc-900">
               <Text className="text-[17px] text-[#007AFF]">Keep It Light</Text>
             </Pressable>
           </View>
@@ -582,17 +568,14 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     </Modal>
   );
 
-  // Separate top-level tasks based on active tab
   const topLevelTasks = displayTasks.filter((t) => {
     if (t.parentTaskId) return false;
     if (activeTab === 'tasks') return !t.isFromCalender;
     return !!t.isFromCalender;
   });
 
-  // Count pending tasks
   const pendingCount = topLevelTasks.filter((t) => !checkedTasks[t.id]).length;
 
-  // ─── Greeting based on time ──────────────────────────────────────
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -603,100 +586,113 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   return (
     <SafeAreaView className="flex-1 bg-white dark:bg-black">
       <View className="flex-1 bg-white dark:bg-black">
-
         <ScrollView
           showsVerticalScrollIndicator={false}
           className="flex-1"
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 120 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 150 }}
         >
-          {/* ─── Header ─── */}
-          <View className="flex-row items-center justify-between mb-1">
-            <Text className="text-4xl font-bold tracking-tight text-black dark:text-white">
-              {getGreeting()},
-            </Text>
-            <Pressable
-              className="h-10 w-10 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black"
-              android_ripple={{ color: isDark ? '#27272a' : '#f4f4f5', radius: 20 }}
-            >
-              <Bell size={19} color={isDark ? '#E4E4E7' : '#3C3C43'} strokeWidth={1.9} />
-            </Pressable>
-          </View>
-          <Text className="text-4xl font-bold tracking-tight text-black dark:text-white -mt-2 mb-4">
-            {profile?.fname || 'There'}
-          </Text>
-
-          {/* ─── Energy Bar ─── */}
-          {energyLoading ? (
-            <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 px-4 py-3 mb-4">
-              <Text className="text-[14px] font-medium text-zinc-400">Loading energy...</Text>
+          {/* ─── Compact Consolidated Header ─── */}
+          <View className="flex-row items-center justify-between mb-5">
+            <View>
+              <Text className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                {getGreeting()}
+              </Text>
+              <Text className="text-2xl font-bold tracking-tight text-black dark:text-white mt-0.5">
+                {profile?.fname || 'There'} 👋
+              </Text>
             </View>
-          ) : (
-            <View className="flex-row items-center justify-between mb-4">
-              <View className="flex-row items-center gap-2 rounded-full border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black px-4 py-2"
-              >
-                <Text className="text-[14px]">{getEnergyEmoji()}</Text>
-                <Text className="text-[14px] font-semibold text-black dark:text-white">
-                  Energy: {getEnergyLabel()} ({energyScore !== null ? energyScore * 10 : '--'}%)
-                </Text>
-              </View>
+
+            <View className="flex-row items-center gap-2">
               <Pressable
                 onPress={() => {
                   fetchMoodlog();
                   fetchStepsToday();
                 }}
-                className="h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black"
-                android_ripple={{ color: isDark ? '#2C2C2E' : '#F2F2F7', radius: 18 }}
+                className="h-10 w-10 items-center justify-center rounded-full border border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900"
+                android_ripple={{ color: isDark ? '#2C2C2E' : '#F2F2F7', radius: 20 }}
               >
-                <RefreshCw size={16} color={isDark ? '#8E8E93' : '#8E8E93'} strokeWidth={1.9} />
+                <RefreshCw size={15} color={isDark ? '#A1A1AA' : '#52525B'} strokeWidth={2} />
+              </Pressable>
+
+              <Pressable
+                className="h-10 w-10 items-center justify-center rounded-full border border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900"
+                android_ripple={{ color: isDark ? '#2C2C2E' : '#F2F2F7', radius: 20 }}
+              >
+                <Bell size={17} color={isDark ? '#A1A1AA' : '#52525B'} strokeWidth={2} />
               </Pressable>
             </View>
-          )}
+          </View>
 
-          {/* ─── Today Summary Card ─── */}
-          <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 px-5 py-4 mb-5">
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-[13px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Today</Text>
-              <View className="rounded-full bg-[#007AFF]/10 px-3 py-1">
-                <Text className="text-[11px] font-semibold text-[#007AFF]">Focus Mode</Text>
+          {/* ─── Unified Daily Insights Dashboard Widget ─── */}
+          <View className="rounded-3xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800/80 p-4 mb-6">
+            {/* Status Metrics Strip */}
+            <View className="flex-row items-center justify-between pb-3 border-b border-zinc-200/60 dark:border-zinc-800/50">
+              <View className="flex-row items-center gap-2">
+                <Text className="text-base">{getEnergyEmoji()}</Text>
+                <View>
+                  <Text className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Energy Level</Text>
+                  <Text className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                    {energyLoading ? 'Loading...' : `${getEnergyLabel()} (${energyScore !== null ? energyScore * 10 : '--'}%)`}
+                  </Text>
+                </View>
               </View>
+
+              {!needsMoodCheck && !energyLoading && freeTimeData?.totalFreeTimeInMinutes !== undefined && (
+                <View className="flex-row items-center gap-2 border-l border-zinc-200 dark:border-zinc-800 pl-4">
+                  <Clock size={14} color="#34C759" strokeWidth={2.5} />
+                  <View>
+                    <Text className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Free Windows</Text>
+                    <Text className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                      {freeTimeLoading ? 'Loading...' : `${Math.floor(freeTimeData.totalFreeTimeInMinutes / 60)}h ${freeTimeData.totalFreeTimeInMinutes % 60}m`}
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
-            {needsMoodCheck ? (
-              <Text className="text-[15px] text-zinc-500 dark:text-zinc-400">
-                To set your daily priorities, please tell us how you're feeling today.
-              </Text>
-            ) : (
-              <Text className="text-[15px] text-zinc-600 dark:text-zinc-300 leading-[22px]">
-                {empatheticMessage
-                  ? empatheticMessage
-                  : tasksLoading
-                    ? 'Loading your tasks...'
-                    : `${pendingCount === 0 ? 'All Clear!' : pendingCount} task${pendingCount !== 1 ? 's' : ''} remaining today.`
-                }
-              </Text>
+
+            {/* AI Core Direct Context Placement */}
+            <View className="pt-3">
+              {needsMoodCheck ? (
+                <Text className="text-[13px] text-zinc-500 dark:text-zinc-400 leading-5 font-medium">
+                  To set up your daily priorities, log your energy level to personalize your focus playbook.
+                </Text>
+              ) : (
+                <Text className="text-[13px] text-zinc-600 dark:text-zinc-300 leading-5">
+                  {empatheticMessage
+                    ? empatheticMessage
+                    : tasksLoading
+                      ? 'Syncing today\'s playbook...'
+                      : `${pendingCount === 0 ? '✨ All clear for now! Enjoy your day.' : `📅 You have ${pendingCount} target${pendingCount !== 1 ? 's' : ''} left to clear today.`}`
+                  }
+                </Text>
+              )}
+            </View>
+
+            {/* Horizontal Free Time Badge Carousels */}
+            {!needsMoodCheck && !energyLoading && !freeTimeLoading && freeTimeData?.freeTimeSlots && freeTimeData.freeTimeSlots.length > 0 && (
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                className="mt-3 pt-2 border-t border-dashed border-zinc-200 dark:border-zinc-800"
+                contentContainerStyle={{ gap: 6 }}
+              >
+                {freeTimeData.freeTimeSlots.map((slot, idx) => (
+                  <View key={idx} className="rounded-full bg-white dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 px-2.5 py-1 flex-row items-center">
+                    <Text className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                      ⏱️ {slot.from} - {slot.to}
+                    </Text>
+                    <Text className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 ml-1">
+                      ({slot.durationInMinutes}m)
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
             )}
           </View>
 
-          {/* ─── Brain Dump ─── */}
-          <View className="items-center justify-center mb-6">
-            <Pressable
-              onPress={() => setIsBrainDumpVisible(true)}
-              className="items-center active:opacity-80"
-            >
-              <View className="h-[140px] w-[140px] items-center justify-center rounded-full bg-[#007AFF]/5 dark:bg-[#007AFF]/10">
-                <View className="h-[100px] w-[100px] items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black"
-                >
-                  <Mic size={32} color="#007AFF" strokeWidth={2} />
-                </View>
-              </View>
-              <Text className="mt-3 text-[11px] font-bold tracking-[2.5px] text-[#007AFF]">
-                BRAIN DUMP
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* ─── Tasks Section ─── */}
+          {/* ─── Tasks Section Header ─── */}
           <View className="flex-row items-center justify-between mb-3">
-            <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 ml-1">
+            <Text className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500 ml-1">
               Your Tasks
             </Text>
             <View className="flex-row items-center gap-3">
@@ -706,92 +702,50 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
               <Pressable
                 onPress={() => setIsCreateTaskVisible(true)}
                 className="h-8 w-8 items-center justify-center rounded-full bg-[#007AFF] active:opacity-80"
-                style={{
-                  shadowColor: '#007AFF',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.25,
-                  shadowRadius: 4,
-                  elevation: 3,
-                }}
+                style={{ shadowColor: '#007AFF', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 }}
               >
-                <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
+                <Plus size={15} color="#FFFFFF" strokeWidth={2.5} />
               </Pressable>
             </View>
           </View>
 
-          {/* Tabs for My Tasks vs Calendar Schedule */}
+          {/* Navigation Tab Selectors */}
           <View className="flex-row rounded-full bg-zinc-100 dark:bg-zinc-900 p-1 mb-4">
             <Pressable
               onPress={() => setActiveTab('tasks')}
-              className={`flex-1 py-2.5 rounded-full items-center justify-center ${
-                activeTab === 'tasks' ? 'bg-white dark:bg-zinc-800' : ''
-              }`}
-              style={
-                activeTab === 'tasks'
-                  ? {
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: 0.12,
-                      shadowRadius: 1.5,
-                      elevation: 2,
-                    }
-                  : undefined
-              }
+              className={`flex-1 py-2.5 rounded-full items-center justify-center ${activeTab === 'tasks' ? 'bg-white dark:bg-zinc-800' : ''}`}
+              style={activeTab === 'tasks' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 1.5, elevation: 2 } : undefined}
             >
-              <Text
-                className={`text-sm font-semibold ${
-                  activeTab === 'tasks' ? 'text-black dark:text-white' : 'text-zinc-500'
-                }`}
-              >
+              <Text className={`text-sm font-semibold ${activeTab === 'tasks' ? 'text-black dark:text-white' : 'text-zinc-400'}`}>
                 My Tasks
               </Text>
             </Pressable>
             <Pressable
               onPress={() => setActiveTab('calendar')}
-              className={`flex-1 py-2.5 rounded-full items-center justify-center ${
-                activeTab === 'calendar' ? 'bg-white dark:bg-zinc-800' : ''
-              }`}
-              style={
-                activeTab === 'calendar'
-                  ? {
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: 0.12,
-                      shadowRadius: 1.5,
-                      elevation: 2,
-                    }
-                  : undefined
-              }
+              className={`flex-1 py-2.5 rounded-full items-center justify-center ${activeTab === 'calendar' ? 'bg-white dark:bg-zinc-800' : ''}`}
+              style={activeTab === 'calendar' ? { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 1.5, elevation: 2 } : undefined}
             >
-              <Text
-                className={`text-sm font-semibold ${
-                  activeTab === 'calendar' ? 'text-black dark:text-white' : 'text-zinc-500'
-                }`}
-              >
+              <Text className={`text-sm font-semibold ${activeTab === 'calendar' ? 'text-black dark:text-white' : 'text-zinc-400'}`}>
                 Calendar Events
               </Text>
             </Pressable>
           </View>
 
+          {/* Task Engine Views */}
           {tasksLoading ? (
-            <View className="items-center py-12 rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800"
-            >
+            <View className="items-center py-12 rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-900">
               <Text className="text-[14px] text-zinc-400 dark:text-zinc-500">Loading tasks...</Text>
             </View>
           ) : needsMoodCheck ? (
-            <View className="items-center py-12 rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 px-6"
-            >
-              <Text className="text-3xl mb-3">👋</Text>
-              <Text className="text-[15px] font-semibold text-black dark:text-white text-center">
-                Let's check in first!
-              </Text>
-              <Text className="text-[13px] text-zinc-400 dark:text-zinc-500 mt-1.5 text-center leading-5">
-                Log your energy level above so we can personalize your task list for today.
+            <View className="items-center py-10 rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-900 px-6">
+              <Text className="text-3xl mb-2">👋</Text>
+              <Text className="text-[15px] font-semibold text-black dark:text-white text-center">Let's check in first!</Text>
+              <Text className="text-[13px] text-zinc-400 dark:text-zinc-500 mt-1 text-center leading-5">
+                Log your energy level above to synchronize your daily workflows.
               </Text>
             </View>
           ) : topLevelTasks.length === 0 && !energyLoading ? (
-            <View className="items-center py-12 rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800"
-            >
+            <View className="items-center py-12 rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-900">
               <Text className="text-3xl mb-2">🎉</Text>
               <Text className="text-[15px] font-semibold text-black dark:text-white">All caught up!</Text>
               <Text className="text-[13px] text-zinc-400 dark:text-zinc-500 mt-1">No tasks for now. Enjoy your day!</Text>
@@ -800,28 +754,98 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             <>
               {topLevelTasks.map((task) => renderTaskCard(task))}
 
-              {/* View All Tasks button */}
               <Pressable
-                className="mt-3 mb-4 flex-row items-center justify-center rounded-full border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black py-3.5 active:opacity-70"
-                onPress={() => navigation.navigate('AllTasks')}
+                className="mt-2 mb-4 flex-row items-center justify-center rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black py-3.5 active:opacity-70"
+                onPress={() => { setShowMicTooltip(false); navigation.navigate('AllTasks'); }}
               >
                 <Text className="text-[15px] font-semibold text-[#007AFF] mr-1">View All Tasks</Text>
-                <ChevronRight size={16} color="#007AFF" strokeWidth={2} />
+                <ChevronRight size={15} color="#007AFF" strokeWidth={2.5} />
               </Pressable>
             </>
           )}
         </ScrollView>
-
       </View>
+
+      {/* ─── Premium AI Voice Brain Dump Floating Action Button (FAB) ─── */}
+      <View className="absolute bottom-6 right-6" pointerEvents="box-none">
+        {/* Tooltip with arrow */}
+        {showMicTooltip && (
+          <View style={{ position: 'absolute', bottom: 68, right: -4, alignItems: 'flex-end', zIndex: 10 }}>
+            <View style={{
+              backgroundColor: isDark ? '#1C1C1E' : '#1C1C1E',
+              borderRadius: 14,
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              shadowColor: '#007AFF',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.25,
+              shadowRadius: 12,
+              elevation: 10,
+              borderWidth: 1,
+              borderColor: 'rgba(0,122,255,0.3)',
+              minWidth: 180,
+            }}>
+              <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+                🎙️ Add tasks using voice
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '400', textAlign: 'center', marginTop: 2 }}>
+                Tap to brain dump your tasks
+              </Text>
+            </View>
+            {/* Arrow pointing down to mic */}
+            <View style={{
+              width: 0,
+              height: 0,
+              borderLeftWidth: 8,
+              borderRightWidth: 8,
+              borderTopWidth: 10,
+              borderLeftColor: 'transparent',
+              borderRightColor: 'transparent',
+              borderTopColor: '#1C1C1E',
+              marginRight: 22,
+              marginTop: -1,
+            }} />
+          </View>
+        )}
+
+        {/* Animated pulse ring behind mic button */}
+        {showMicTooltip && (
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: 0, left: 0, right: 0, bottom: 0,
+              borderRadius: 28,
+              backgroundColor: 'rgba(0,122,255,0.18)',
+              transform: [{ scale: pulseAnim }],
+            }}
+          />
+        )}
+
+        <Pressable
+          onPress={() => {
+            setShowMicTooltip(false);
+            setIsBrainDumpVisible(true);
+          }}
+          className="h-14 w-14 items-center justify-center rounded-full bg-[#007AFF]"
+          style={{
+            shadowColor: '#007AFF',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: showMicTooltip ? 0.5 : 0.3,
+            shadowRadius: showMicTooltip ? 12 : 6,
+            elevation: showMicTooltip ? 12 : 8,
+          }}
+        >
+          <Mic size={22} color="#FFFFFF" strokeWidth={2.5} />
+        </Pressable>
+      </View>
+
       {renderMoodCheckModal()}
       {renderConsentPopup()}
+      
       <BrainDumpModal
         isVisible={isBrainDumpVisible}
         onClose={() => setIsBrainDumpVisible(false)}
-        onSave={(text: string) => {
-          // setLastThought(text);
-          fetchMoodlog();
-        }}
+        onSave={(text: string) => fetchMoodlog()}
       />
       <CreateTaskModal
         isVisible={isCreateTaskVisible}

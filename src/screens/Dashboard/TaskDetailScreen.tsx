@@ -23,6 +23,15 @@ const TaskDetailScreen: React.FC = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [dateObj, setDateObj] = useState(new Date());
+
+  const [startTimeDate, setStartTimeDate] = useState('');
+  const [startTimeTime, setStartTimeTime] = useState('');
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [startDateObj, setStartDateObj] = useState(new Date());
+
+  const [estimatedTimeStr, setEstimatedTimeStr] = useState('');
+
   const [editForm, setEditForm] = useState<ManualTaskRequest>({
     title: '',
     description: '',
@@ -84,11 +93,41 @@ const TaskDetailScreen: React.FC = () => {
         }
         setDateObj(dObj);
 
+        let defaultStartDate = '';
+        let defaultStartTime = '';
+        if (response.task.startTime) {
+          try {
+            const parts = response.task.startTime.split('T');
+            if (parts.length === 2) {
+              defaultStartDate = parts[0];
+              defaultStartTime = parts[1].substring(0, 5); 
+            } else {
+              defaultStartDate = response.task.startTime;
+            }
+          } catch(e) {}
+        }
+        
+        setStartTimeDate(defaultStartDate);
+        setStartTimeTime(defaultStartTime);
+        let sdObj = new Date();
+        if (defaultStartDate) {
+          const t = defaultStartTime || '00:00';
+          const parsed = new Date(`${defaultStartDate}T${t}:00`);
+          if (!isNaN(parsed.getTime())) {
+            sdObj = parsed;
+          }
+        }
+        setStartDateObj(sdObj);
+
+        setEstimatedTimeStr(response.task.estimatedTime ? response.task.estimatedTime.toString() : '');
+
         setEditForm({
           title: response.task.title,
           description: response.task.description || '',
           effortLevel: response.task.effort_level,
           deadline: response.task.deadline || '',
+          startTime: response.task.startTime || '',
+          estimatedTime: response.task.estimatedTime || null,
           isCritical: response.task.is_critical,
           status: response.task.status
         });
@@ -131,6 +170,25 @@ const TaskDetailScreen: React.FC = () => {
       } else {
         payload.deadline = null;
       }
+      
+      const sd = startTimeDate.trim();
+      const st = startTimeTime.trim();
+      if (sd && st) {
+        payload.startTime = `${sd}T${st}:00`;
+      } else if (sd) {
+        payload.startTime = `${sd}T00:00:00`;
+      } else {
+        payload.startTime = null;
+      }
+
+      let estTime: number | null = null;
+      if (estimatedTimeStr.trim()) {
+        const parsed = parseInt(estimatedTimeStr, 10);
+        if (!isNaN(parsed)) {
+          estTime = parsed;
+        }
+      }
+      payload.estimatedTime = estTime;
       
       const response = await dashboardApi.updateTask(taskId, payload);
       if (response.success) {
@@ -426,6 +484,82 @@ const TaskDetailScreen: React.FC = () => {
             )}
           </View>
 
+          {/* Start Time */}
+          <View className="mx-5 mt-6">
+            <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2 ml-1">
+              Start Time
+            </Text>
+            <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+            >
+              <Pressable
+                onPress={() => setShowStartDatePicker(true)}
+                className="flex-row items-center px-4 py-3.5"
+              >
+                <Text className="flex-1 text-[16px] text-black dark:text-white">Date</Text>
+                <Text className={`text-[16px] ${startTimeDate ? 'text-[#007AFF]' : 'text-zinc-300 dark:text-zinc-600'}`}>
+                  {startTimeDate ? formatDisplayDate(startTimeDate) : 'None'}
+                </Text>
+              </Pressable>
+              <View className="h-[0.5px] ml-4 bg-zinc-100 dark:bg-zinc-700" />
+              <Pressable
+                onPress={() => setShowStartTimePicker(true)}
+                className="flex-row items-center px-4 py-3.5"
+              >
+                <Text className="flex-1 text-[16px] text-black dark:text-white">Time</Text>
+                <Text className={`text-[16px] ${startTimeTime ? 'text-[#007AFF]' : 'text-zinc-300 dark:text-zinc-600'}`}>
+                  {startTimeTime || 'None'}
+                </Text>
+              </Pressable>
+            </View>
+
+            {showStartDatePicker && (
+              <DateTimePicker
+                value={startDateObj}
+                mode="date"
+                display="default"
+                onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
+                  setShowStartDatePicker(false);
+                  if (selectedDate) {
+                    setStartDateObj(selectedDate);
+                    setStartTimeDate(selectedDate.toISOString().split('T')[0]);
+                  }
+                }}
+              />
+            )}
+            {showStartTimePicker && (
+              <DateTimePicker
+                value={startDateObj}
+                mode="time"
+                display="default"
+                onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
+                  setShowStartTimePicker(false);
+                  if (selectedDate) {
+                    setStartDateObj(selectedDate);
+                    setStartTimeTime(selectedDate.toISOString().split('T')[1].substring(0, 5));
+                  }
+                }}
+              />
+            )}
+          </View>
+
+          {/* Estimated Time */}
+          <View className="mx-5 mt-6">
+            <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2 ml-1">
+              Estimated Time (mins)
+            </Text>
+            <View className="rounded-3xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+            >
+              <TextInput
+                value={estimatedTimeStr}
+                onChangeText={setEstimatedTimeStr}
+                placeholder="e.g. 30"
+                keyboardType="numeric"
+                placeholderTextColor={isDark ? '#636366' : '#C7C7CC'}
+                className="px-4 py-3.5 text-[17px] text-black dark:text-white font-medium"
+              />
+            </View>
+          </View>
+
           {/* Effort Level */}
           <View className="mx-5 mt-6">
             <Text className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2 ml-1">
@@ -597,16 +731,36 @@ const TaskDetailScreen: React.FC = () => {
             </Text>
 
             {/* Deadline */}
-            <View className="flex-row items-center gap-2">
+            <View className="flex-row items-center gap-2 mb-1.5">
               {urgent ? (
                 <AlertTriangle size={14} color="#FF3B30" strokeWidth={2.2} />
               ) : (
                 <Clock size={14} color={isDark ? '#8E8E93' : '#8E8E93'} strokeWidth={2.2} />
               )}
               <Text className={`text-[14px] font-medium ${urgent ? 'text-red-500' : 'text-zinc-400 dark:text-zinc-500'}`}>
-                {formatDeadline(task.deadline)}
+                Deadline: {formatDeadline(task.deadline)}
               </Text>
             </View>
+
+            {/* Start Time */}
+            {task.startTime && (
+              <View className="flex-row items-center gap-2 mb-1.5">
+                <Clock size={14} color={isDark ? '#8E8E93' : '#8E8E93'} strokeWidth={2.2} />
+                <Text className="text-[14px] font-medium text-zinc-400 dark:text-zinc-500">
+                  Starts: {formatDeadline(task.startTime)}
+                </Text>
+              </View>
+            )}
+
+            {/* Estimated Time */}
+            {task.estimatedTime != null && (
+              <View className="flex-row items-center gap-2">
+                <Clock size={14} color={isDark ? '#8E8E93' : '#8E8E93'} strokeWidth={2.2} />
+                <Text className="text-[14px] font-medium text-zinc-400 dark:text-zinc-500">
+                  Est. Duration: {task.estimatedTime} mins
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 

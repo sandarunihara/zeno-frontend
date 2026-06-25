@@ -23,6 +23,8 @@ export interface Task {
   description?: string; // Optional because it can be null
   effort_level: string; 
   deadline?: string | null;    // ISO-8601 string format (e.g., "2026-04-23T19:40:00")
+  startTime?: string | null;
+  estimatedTime?: number | null;
   is_critical: boolean;
   status: string;
   parentTaskId?: number | null;
@@ -63,8 +65,21 @@ export interface ManualTaskRequest {
     description?: string;
     effortLevel: string;
     deadline?: string | null;
+    startTime?: string | null;
+    estimatedTime?: number | null;
     isCritical: boolean;
     status: string;
+}
+
+export interface FreeTimeSlot {
+  from: string;
+  to: string;
+  durationInMinutes: number;
+}
+
+export interface FreeTimeResponse {
+  freeTimeSlots: FreeTimeSlot[];
+  totalFreeTimeInMinutes: number;
 }
 
 export interface TaskResponce {
@@ -107,6 +122,11 @@ export const dashboardApi = {
 
     getTaskById: async (id: number): Promise<TaskDetailResponse> => {
         const response = await axiosClient.get<TaskDetailResponse>(`/api/core/tasks/${id}`);
+        return response.data;
+    },
+
+    getTodaysFreeTime: async (): Promise<FreeTimeResponse> => {
+        const response = await axiosClient.get<FreeTimeResponse>('/api/core/tasks/freetime');
         return response.data;
     },
 
